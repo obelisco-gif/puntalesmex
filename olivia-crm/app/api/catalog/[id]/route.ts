@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "../../../../../lib/auth";
-import { update } from "../../../../../lib/supabase";
+import { isAdmin } from "../../../../lib/auth";
+import { update } from "../../../../lib/supabase";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin())) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
