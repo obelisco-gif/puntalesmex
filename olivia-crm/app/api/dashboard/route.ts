@@ -6,11 +6,11 @@ export async function GET() {
   if (!(await isAdmin())) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   try {
     const [products, contacts, conversations, documents, touchpoints] = await Promise.all([
-      select("catalog_products", "select=id,name,price,stock_status,image_url,internal_notes,manual_tags,permalink&order=name.asc&limit=100"),
-      select("contacts", "select=id&limit=1000"),
-      select("conversations", "select=id,status&limit=1000"),
-      select("product_documents", "select=id&limit=1000"),
-      select("attribution_touchpoints", "select=id&limit=1000")
+      select<any>("catalog_products", "select=id,name,price,stock_status,image_url,internal_notes,manual_tags,permalink&order=name.asc&limit=100"),
+      select<any>("contacts", "select=id&limit=1000"),
+      select<any>("conversations", "select=id,status&limit=1000"),
+      select<any>("product_documents", "select=id&limit=1000"),
+      select<any>("attribution_touchpoints", "select=id&limit=1000")
     ]);
     return NextResponse.json({
       products,
