@@ -3,7 +3,7 @@ const CONFIG = {
   brandName: "[Marca pendiente]",
   phoneDisplay: "",
   phoneE164: "", // Ejemplo: 525512345678 (solo dígitos)
-  whatsappE164: "5219999972368", // México: 52 + 1 + número móvil, solo dígitos
+  whatsappE164: "529999972368", // México: 52 + número de 10 dígitos
   whatsappMessage: "Hola, me interesa información sobre puntales para mi obra.",
   ga4MeasurementId: "", // Ejemplo: G-XXXXXXXXXX
   googleAdsId: "" // Ejemplo: AW-XXXXXXXXXX
