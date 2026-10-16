@@ -8,12 +8,12 @@ En [`script.js`](./script.js), sustituye los valores de `CONFIG`:
 
 - `brandName`
 - `phoneDisplay` y `phoneE164`
-- `whatsappE164`
+- `whatsappE164` (configurado para el número facilitado; confirmar si cambia)
 - `whatsappMessage`
 - `ga4MeasurementId`
 - `googleAdsId`
 
-Mientras estos valores estén vacíos, los CTA muestran un aviso y no intentan contactar a un número ficticio.
+Mientras el número de llamadas esté vacío, los CTA de llamada muestran un aviso y no intentan contactar a un número ficticio. Los CTA de WhatsApp ya están activos.
 
 También actualiza el dominio canónico, las imágenes Open Graph y el texto de cobertura en [`index.html`](./index.html).
 
@@ -36,4 +36,4 @@ Las fotografías proporcionadas están incluidas para la muestra en `assets/imag
 
 ## Pendientes del cliente
 
-Marca, teléfono, WhatsApp, cobertura real, catálogo, condiciones comerciales, logotipo, fotografías propias, dominio, aviso de privacidad e IDs de GA4/Google Ads.
+Marca, teléfono para llamadas, cobertura real, catálogo, condiciones comerciales, logotipo, fotografías propias, dominio, aviso de privacidad e IDs de GA4/Google Ads.

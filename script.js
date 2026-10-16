@@ -3,7 +3,7 @@ const CONFIG = {
   brandName: "[Marca pendiente]",
   phoneDisplay: "",
   phoneE164: "", // Ejemplo: 525512345678 (solo dígitos)
-  whatsappE164: "", // Ejemplo: 525512345678 (solo dígitos)
+  whatsappE164: "5219999972368", // México: 52 + 1 + número móvil, solo dígitos
   whatsappMessage: "Hola, me interesa información sobre puntales para mi obra.",
   ga4MeasurementId: "", // Ejemplo: G-XXXXXXXXXX
   googleAdsId: "" // Ejemplo: AW-XXXXXXXXXX
@@ -11,7 +11,7 @@ const CONFIG = {
 
 const toast = document.querySelector('.toast');
 const notifyPending = () => {
-  toast.textContent = 'El dato de contacto todavía está pendiente de configurar.';
+  toast.textContent = 'El número para llamadas todavía está pendiente de configurar. Puedes escribirnos por WhatsApp.';
   toast.classList.add('show');
   window.setTimeout(() => toast.classList.remove('show'), 3400);
 };
