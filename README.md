@@ -1,6 +1,6 @@
 # Puntales México — landing de captación
 
-Landing estática, rápida y preparada para Vercel para captar prospectos de puntales para construcción en México. Está diseñada para conversión mediante WhatsApp y llamada: no incluye formulario.
+Landing estática de Operadora OYC, preparada para captar prospectos de puntales nuevos y usados para construcción en México. Está diseñada para conversión mediante WhatsApp y llamada: no incluye formulario.
 
 ## Configuración antes de publicar
 
@@ -36,4 +36,4 @@ Las fotografías proporcionadas están incluidas para la muestra en `assets/imag
 
 ## Pendientes del cliente
 
-Marca, teléfono para llamadas, cobertura real, catálogo, condiciones comerciales, logotipo, fotografías propias, dominio, aviso de privacidad e IDs de GA4/Google Ads.
+Teléfono para llamadas, cobertura real, catálogo, condiciones comerciales, fotografías finales de puntales usados, dominio, aviso de privacidad e IDs de GA4/Google Ads.

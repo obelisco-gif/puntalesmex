@@ -1,6 +1,6 @@
 // Completa estos valores con información confirmada del cliente antes de producción.
 const CONFIG = {
-  brandName: "[Marca pendiente]",
+  brandName: "Operadora OYC",
   phoneDisplay: "",
   phoneE164: "", // Ejemplo: 525512345678 (solo dígitos)
   whatsappE164: "529999972368", // México: 52 + número de 10 dígitos
