@@ -20,4 +20,4 @@
 
 .new-types,.new-showcase{background:#e7eaec;box-shadow:0 0 0 100vmax #e7eaec;clip-path:inset(0 -100vmax)}
 
-.hero{padding-top:25px;padding-bottom:25px}.product-showcase{padding-top:25px}.company-location+.faq{padding-top:25px}
+.hero{padding-top:25px;padding-bottom:25px}.product-showcase{padding-top:25px}.company-location+.faq{padding-top:25px}.header-whatsapp,.text-link{font-weight:800;color:var(--pine)}@media(max-width:760px){.header-whatsapp{font-size:.88rem}.mobile-actions{grid-template-columns:1fr}.mobile-actions a{background:var(--lime)}}

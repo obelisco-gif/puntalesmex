@@ -1,8 +1,6 @@
 // Completa estos valores con información confirmada del cliente antes de producción.
 const CONFIG = {
   brandName: "Operadora OYC",
-  phoneDisplay: "",
-  phoneE164: "", // Ejemplo: 525512345678 (solo dígitos)
   whatsappE164: "529999972368", // México: 52 + número de 10 dígitos
   whatsappMessage: "Hola, me interesa información sobre puntales para mi obra.",
   ga4MeasurementId: "", // Ejemplo: G-XXXXXXXXXX
@@ -11,17 +9,10 @@ const CONFIG = {
 
 const toast = document.querySelector('.toast');
 const notifyPending = () => {
-  toast.textContent = 'El número para llamadas todavía está pendiente de configurar. Puedes escribirnos por WhatsApp.';
+  toast.textContent = 'WhatsApp todavía está pendiente de configurar.';
   toast.classList.add('show');
   window.setTimeout(() => toast.classList.remove('show'), 3400);
 };
-
-document.querySelectorAll('.js-call').forEach((link) => {
-  if (CONFIG.phoneE164) {
-    link.href = `tel:+${CONFIG.phoneE164}`;
-    if (CONFIG.phoneDisplay) link.textContent = link.textContent.includes('Llamar') ? `Llamar: ${CONFIG.phoneDisplay}` : link.textContent;
-  } else link.addEventListener('click', (event) => { event.preventDefault(); notifyPending(); });
-});
 
 document.querySelectorAll('.js-whatsapp').forEach((link) => {
   if (CONFIG.whatsappE164) {
