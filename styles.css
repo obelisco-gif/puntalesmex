@@ -19,3 +19,5 @@
 @media(min-width:761px){.hero{min-height:0;height:520px;align-items:center}.hero-copy{padding:0 28px;align-self:center}.hero-visual{height:440px;min-height:0;margin-right:36px;align-self:center;border:1px solid #ffffff33;box-shadow:0 22px 45px #061b2d55}.hero-visual img{min-height:0}}@media(min-width:761px) and (prefers-reduced-motion:no-preference){.hero-visual img{height:calc(100% + 52px);min-height:0}}
 
 .new-types,.new-showcase{background:#e7eaec;box-shadow:0 0 0 100vmax #e7eaec;clip-path:inset(0 -100vmax)}
+
+.hero{padding-top:25px;padding-bottom:25px}.product-showcase{padding-top:25px}.company-location+.faq{padding-top:25px}
