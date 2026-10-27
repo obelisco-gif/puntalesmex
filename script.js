@@ -42,3 +42,26 @@ if (CONFIG.googleAdsId) {
 }
 document.getElementById('year').textContent = new Date().getFullYear();
 
+const heroVisual = document.querySelector('.hero-visual');
+const heroParallaxAllowed = window.matchMedia('(min-width: 761px) and (prefers-reduced-motion: no-preference)');
+if (heroVisual && heroParallaxAllowed.matches) {
+  let pendingFrame = false;
+  const updateHeroParallax = () => {
+    const rect = heroVisual.getBoundingClientRect();
+    const viewportCenter = window.innerHeight / 2;
+    const visualCenter = rect.top + (rect.height / 2);
+    const progress = Math.max(-1, Math.min(1, (visualCenter - viewportCenter) / (viewportCenter + (rect.height / 2))));
+    heroVisual.style.setProperty('--hero-parallax', `${Math.round(progress * -22)}px`);
+    pendingFrame = false;
+  };
+  const requestHeroParallax = () => {
+    if (!pendingFrame) {
+      pendingFrame = true;
+      window.requestAnimationFrame(updateHeroParallax);
+    }
+  };
+  window.addEventListener('scroll', requestHeroParallax, { passive: true });
+  window.addEventListener('resize', requestHeroParallax);
+  requestHeroParallax();
+}
+
