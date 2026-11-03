@@ -19,7 +19,7 @@ async function main() {
       active = true;
       return res.end(JSON.stringify({ access_token: token, refresh_token: "test-refresh", token_type: "bearer", expires_in: 3600, user }));
     }
-    if (req.url.startsWith("/auth/v1/otp")) { emails++; return res.end("{}"); }
+    if (req.url.startsWith("/auth/v1/recover")) { emails++; return res.end("{}"); }
     if (req.url.startsWith("/auth/v1/user")) {
       if (!active || req.headers.authorization !== "Bearer " + token) { res.statusCode = 401; return res.end(JSON.stringify({ msg: "Unauthorized" })); }
       if (req.method === "PUT") updates++;

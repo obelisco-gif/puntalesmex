@@ -20,12 +20,15 @@ para correo propio se necesita un proveedor SMTP configurado.
 
 ## Primer acceso y recuperación
 
-Introducir el email y pulsar **Crear o recuperar contraseña**. Supabase envía
-un enlace de un solo uso al email autorizado; permite crear la cuenta si todavía
-no existe. Abrir el enlace en el mismo navegador que lo solicitó para completar
-PKCE. En la página de contraseña, el titular establece una contraseña personal
-de al menos 12 caracteres. A partir de ahí puede entrar con email y contraseña.
-No hay registro público en el CRM ni acceso para emails fuera de la lista.
+Crear primero el usuario administrador desde Supabase Auth del proyecto Sadiet,
+con email confirmado y una contraseña personal. Después entrar con ese email y
+contraseña. La cuenta no se crea automáticamente desde el CRM.
+
+Para recuperar una contraseña, introducir el email y pulsar **Recuperar contraseña**.
+Supabase envía un enlace de un solo uso a la cuenta existente. Abrirlo en el mismo
+navegador que lo solicitó para completar PKCE. El titular puede establecer una
+contraseña nueva de al menos 12 caracteres. No hay registro público en el CRM ni
+acceso para emails fuera de la lista.
 
 La recuperación no cambia la contraseña hasta que el titular la guarda.
 **Cerrar sesión** revoca la sesión local de Supabase y elimina la cookie
