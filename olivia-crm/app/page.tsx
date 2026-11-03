@@ -15,6 +15,7 @@ const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contac
 export default function OliviaCrm() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("resumen");
@@ -25,15 +26,43 @@ export default function OliviaCrm() {
     setData(await res.json());
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("auth_error")) setNotice("El enlace no es válido o ha caducado. Solicita uno nuevo.");
+    load().catch(() => setNotice("No se pudo conectar con el CRM. Vuelve a intentarlo."));
+  }, []);
 
   const login = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
-    const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }) });
-    setBusy(false);
-    if (!res.ok) { setNotice("La clave no es correcta."); return; }
-    setPassword(""); setNotice(""); load();
+    setNotice("");
+    try {
+      const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const body = await res.json();
+      if (!res.ok) { setNotice(body.error || "No se pudo iniciar sesión."); return; }
+      setPassword(""); setNotice(""); await load();
+    } catch { setNotice("No se pudo conectar. Inténtalo de nuevo."); }
+    finally { setBusy(false); }
+  };
+
+  const recover = async () => {
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setNotice("Introduce tu email para recibir el enlace."); return; }
+    setBusy(true); setNotice("");
+    try {
+      const res = await fetch("/api/auth/recover", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
+      const body = await res.json();
+      setNotice(res.ok ? body.message : body.error || "No se pudo solicitar el enlace.");
+    } catch { setNotice("No se pudo conectar. Inténtalo de nuevo."); }
+    finally { setBusy(false); }
+  };
+
+  const logout = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/session", { method: "DELETE" });
+      if (res.ok) { setData(null); setPassword(""); setNotice(""); }
+      else setNotice("No se pudo cerrar la sesión. Inténtalo de nuevo.");
+    } catch { setNotice("No se pudo conectar. Inténtalo de nuevo.");
+    } finally { setBusy(false); }
   };
 
   const saveResource = async (resource: string, id: string, body: Record<string, unknown>) => {
@@ -53,7 +82,7 @@ export default function OliviaCrm() {
     setNotice("Documento creado como borrador."); load();
   };
 
-  if (!data) return <main className="login-shell"><section className="login-card"><p className="eyebrow">SADIET · OLIVIA</p><h1>CRM comercial</h1><p>Accede para gestionar conversaciones, recomendaciones y conocimiento de producto.</p><form onSubmit={login}><label>Clave de acceso<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus /></label><button disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form>{notice && <p className="notice">{notice}</p>}</section></main>;
+  if (!data) return <main className="login-shell"><section className="login-card"><p className="eyebrow">SADIET · OLIVIA</p><h1>Acceso al CRM</h1><p>Entra con tu email y contraseña personal.</p><form onSubmit={login}><label>Email<input type="email" name="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus /></label><label>Contraseña<input type="password" name="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button disabled={busy}>{busy ? "Espera…" : "Entrar"}</button><button type="button" className="secondary" disabled={busy} onClick={recover}>Crear o recuperar contraseña</button></form><p>Si es tu primer acceso, introduce tu email y solicita un enlace para crear tu contraseña.</p>{notice && <p className="notice" role="status">{notice}</p>}</section></main>;
 
   const titles: Record<string, string> = { resumen: "Visión general", conversaciones: "Conversaciones", contactos: "Contactos", catalogo: "Catálogo", documentacion: "Documentación", atribucion: "Atribución" };
 
@@ -62,7 +91,7 @@ export default function OliviaCrm() {
       {tabs.map(([id,label]) => <button key={id} className={tab === id ? "nav active" : "nav"} onClick={() => setTab(id)}>{label}</button>)}
     </aside>
     <section className="content">
-      <header><div><p className="eyebrow">CENTRO COMERCIAL</p><h1>{titles[tab]}</h1></div><button className="secondary" onClick={() => load()}>Actualizar</button></header>
+      <header><div><p className="eyebrow">CENTRO COMERCIAL</p><h1>{titles[tab]}</h1></div><div className="header-actions"><button className="secondary" onClick={() => load()}>Actualizar</button><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></div></header>
       {notice && <p className="notice">{notice}</p>}
       {tab === "resumen" && <Summary data={data} />}
       {tab === "catalogo" && <section className="catalog">{data.products.map((product) => <ProductCard key={product.id} product={product} onSave={saveNotes} />)}</section>}
