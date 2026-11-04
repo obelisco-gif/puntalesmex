@@ -11,4 +11,3 @@ select selected.ctx || jsonb_build_object('base_documents',base.docs,'documents'
 coalesce((select jsonb_agg(doc) from jsonb_array_elements(coalesce(selected.ctx->'documents','[]'::jsonb)) doc
 where not exists(select 1 from jsonb_array_elements(base.docs) b where b->>'id'=doc->>'id')),'[]'::jsonb)) as context
 from selected cross join base;
-
