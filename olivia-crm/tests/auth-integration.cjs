@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -26,6 +26,14 @@ async function main() {
       return res.end(JSON.stringify(user));
     }
     if (req.url.startsWith("/auth/v1/logout")) { active = false; res.statusCode = 204; return res.end(); }
+    if (req.url.startsWith("/rest/v1/rpc/save_olivia_document")) {
+      documentWrites++;
+      savedDocument = { ...body.p_document, id: body.p_id || "00000000-0000-4000-8000-000000000010", updated_at: new Date().toISOString() };
+      return res.end(JSON.stringify(savedDocument));
+    }
+    if (req.url.startsWith("/rest/v1/product_documents")) return res.end(JSON.stringify(savedDocument ? [{
+      ...savedDocument, product_document_products: savedDocument.catalog_product_ids.map(catalog_product_id => ({catalog_product_id}))
+    }] : []));
     if (req.url.startsWith("/rest/v1/")) return res.end("[]");
     res.statusCode = 404; res.end("{}");
   });
@@ -56,6 +64,22 @@ async function main() {
     assert.equal(emails,1);
     assert.equal((await request("/auth/callback?code=valid-code&next=%2Freset-password")).headers.get("location"),base+"/reset-password");
     assert.equal((await request("/api/dashboard")).status,200,"verified allowlisted session reads CRM");
+    const document = { title:"Guía conjunta",content:"Contenido de prueba",approval_status:"draft",routing_packages:["commercial","black_friday","tema_nuevo"],catalog_product_ids:["00000000-0000-4000-8000-000000000002","00000000-0000-4000-8000-000000000003"],source_url:"https://example.invalid/fuente" };
+    const created = await request("/api/documents","POST",document);
+    assert.equal(created.status,201);
+    const createdDocument = await created.json();
+    assert.deepEqual(createdDocument.catalog_product_ids,document.catalog_product_ids);
+    assert.deepEqual(createdDocument.routing_packages,document.routing_packages);
+    const dashboard = await (await request("/api/dashboard")).json();
+    assert.deepEqual(dashboard.documents[0].catalog_product_ids,document.catalog_product_ids,"read relation links into editor");
+    assert.equal((await request("/api/crm/documents/"+createdDocument.id,"PATCH",{...document,approval_status:"approved",catalog_product_ids:[document.catalog_product_ids[1]]})).status,200);
+    assert.equal(savedDocument.approval_status,"approved");
+    assert.equal(savedDocument.catalog_product_ids.length,1);
+    assert.equal((await request("/api/documents","POST",{...document,catalog_product_ids:["invalid-id"]})).status,400);
+    assert.equal((await request("/api/documents","POST",{...document,source_url:"javascript:alert(1)"})).status,400);
+    assert.equal((await request("/api/crm/documents/"+createdDocument.id,"PATCH",{...document,routing_packages:[]})).status,400);
+    assert.equal(documentWrites,2,"invalid documents must never reach database");
+    assert.equal((await request("/api/documents","POST",document,{origin:"https://attacker.invalid"})).status,403);
     assert.equal((await request("/api/auth/password","POST",{password:"short"})).status,400);
     assert.equal((await request("/api/auth/password","POST",{password:"new-test-only-password"})).status,200);
     assert.equal(updates,1);
@@ -65,7 +89,7 @@ async function main() {
     assert.equal((await request("/api/dashboard")).status,200);
     active = false;
     assert.equal((await request("/api/dashboard")).status,401,"revoked provider session must fail closed");
-    console.log("PASS: HTTP login, allowlist, legacy-cookie rejection, CSRF, email recovery, callback, password update, logout and revocation.");
+    console.log("PASS: auth boundaries, document create/edit/read with multiple products and custom topics, validation, CSRF, recovery, password update, logout and revocation.");
   } catch (error) { console.error(logs.slice(-3000)); throw error; }
   finally { child.kill(); await new Promise(resolve => provider.close(resolve)); }
 }

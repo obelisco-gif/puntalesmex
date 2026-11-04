@@ -35,7 +35,32 @@ La recuperación no cambia la contraseña hasta que el titular la guarda.
 heredada del acceso antiguo. Las API vuelven a verificar al usuario en cada
 solicitud; un fallo de Auth deniega acceso.
 
+## Documentación con productos y temas
+
+En Documentación, cada documento puede relacionarse con varios productos del
+catálogo y tener varios temas independientes. Se pueden añadir temas nuevos
+desde el editor. Comercial no excluye preparación, Black Friday o un producto.
+Sin productos relacionados, el documento es general. Los estados siguen siendo
+borrador, aprobado y archivado; el tema Uso interno excluye el documento de la IA.
+
+La tabla product_document_products conserva las relaciones. El guardado de
+contenido, estado, temas y productos usa una única transacción del servidor.
+La columna antigua catalog_product_id se mantiene como referencia compatible.
+
+El índice del nuevo núcleo de Olivia incluye temas e identificadores de los
+productos relacionados. La consulta devuelve documentos específicos solo cuando
+coincide uno de esos productos; los generales se buscan por tema. El validador
+del primer agente acepta temas personalizados presentes en el índice, rechaza
+temas inventados o internos y elimina los productos al tramitar STOP.
+
+Los ajustes de n8n están exportados en n8n/document-routing.json y preparados en
+el borrador del flujo de conversación. Su publicación se gestiona por separado.
+La versión antigua recibe también los temas y relaciones en su contexto.
+
 ## Validación
 
-`npm ci`, `npm run build` y `node tests/auth-integration.cjs`.
-La prueba HTTP usa un proveedor Auth local simulado y no manda correos.
+`npm ci`, `npm run build`, `node tests/auth-integration.cjs` y
+`node tests/document-routing.cjs`.
+La prueba HTTP usa un proveedor local simulado y no manda correos. La prueba de
+base de datos tests/document-relations.sql comprueba las relaciones y la consulta
+con una transacción que termina en rollback.

@@ -11,7 +11,7 @@ export async function GET() {
       select<any>("contacts", "select=id,first_name,email,phone,stage,source,manual_tags,internal_notes,preferences,assigned_to,updated_at&order=updated_at.desc&limit=100"),
       select<any>("conversations", "select=id,contact_id,channel,status,priority,handoff_status,internal_notes,updated_at,contacts(first_name,email,phone)&order=updated_at.desc&limit=100"),
       select<any>("messages", "select=id,conversation_id,direction,body,external_message_id,created_at&order=created_at.asc&limit=1000"),
-      select<any>("product_documents", "select=id,catalog_product_id,document_type,title,content,source_url,approval_status,reviewed_at,updated_at&order=updated_at.desc&limit=100"),
+      select<any>("product_documents", "select=id,catalog_product_id,document_type,title,content,source_url,approval_status,reviewed_at,updated_at,routing_packages,product_document_products(catalog_product_id)&order=updated_at.desc&limit=100"),
       select<any>("attribution_touchpoints", "select=id,contact_id,channel,source,campaign,medium,content,external_lead_id,occurred_at,metadata,contacts(first_name,email,phone)&order=occurred_at.desc&limit=100")
     ]);
 
@@ -20,7 +20,10 @@ export async function GET() {
       contacts,
       conversations,
       messages,
-      documents,
+      documents: documents.map((document: any) => ({
+        ...document,
+        catalog_product_ids: [...new Set([...(document.product_document_products || []).map((link: any) => link.catalog_product_id), ...(document.catalog_product_id ? [document.catalog_product_id] : [])])]
+      })),
       touchpoints,
       metrics: {
         products: products.length,

@@ -42,3 +42,13 @@ export async function insert<T>(table: string, body: object): Promise<T[]> {
   if (!response.ok) throw new Error("No se pudo guardar en " + table);
   return response.json();
 }
+
+export async function rpc<T>(name: string, body: object): Promise<T> {
+  const { baseUrl } = config();
+  const response = await fetch(baseUrl + "/rest/v1/rpc/" + name, {
+    method: "POST", headers: headers({ "content-type": "application/json" }),
+    body: JSON.stringify(body), cache: "no-store"
+  });
+  if (!response.ok) throw new Error("No se pudo guardar el documento. Comprueba que los productos sigan en el catálogo y vuelve a intentarlo.");
+  return response.json();
+}
