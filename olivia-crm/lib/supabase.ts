@@ -51,6 +51,7 @@ export async function rpc<T>(name: string, body: object): Promise<T> {
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
+    if (name === "olivia_save_conversation" && String(result.message).includes("conversación ha cambiado")) throw new Error("La conversación ha cambiado. Actualízala antes de guardar.");
     if (name === "olivia_save_contact" && String(result.message).includes("contacto ha cambiado")) throw new Error("El contacto ha cambiado. Actualiza la ficha antes de guardar.");
     throw new Error("No se pudo guardar. Revisa los datos, actualiza la ficha y vuelve a intentarlo.");
   }

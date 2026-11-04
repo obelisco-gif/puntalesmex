@@ -46,7 +46,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
       if (body.status && !["open","paused","closed"].includes(String(body.status))) return NextResponse.json({ error: "Estado no válido" }, { status: 400 });
       if (body.priority && !["low","normal","high","urgent"].includes(String(body.priority))) return NextResponse.json({ error: "Prioridad no válida" }, { status: 400 });
       if (body.handoff_status && !["bot","pending_human","human","resolved"].includes(String(body.handoff_status))) return NextResponse.json({ error: "Atención no válida" }, { status: 400 });
-      body.updated_at = new Date().toISOString();
+      if (typeof incoming.expected_updated_at !== "string" || !Number.isFinite(Date.parse(incoming.expected_updated_at))) return NextResponse.json({error:"Actualiza la conversación antes de guardar."},{status:400});
+      if ("internal_notes" in body && (typeof body.internal_notes !== "string" || body.internal_notes.length > 10000)) return NextResponse.json({error:"Notas no válidas"},{status:400});
+      return NextResponse.json(await rpc("olivia_save_conversation",{p_id:id,p_input:{...body,expected_updated_at:incoming.expected_updated_at}}));
     }
     if (resource === "documents" && body.approval_status === "approved" && !body.reviewed_at) {
       body.reviewed_at = new Date().toISOString();
@@ -54,6 +56,6 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
     const result = await update(tables[resource], id, body);
     return NextResponse.json(result[0]);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: ["documents","contacts","contact_entries","attributes"].includes(resource) ? 400 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: error instanceof Error && error.message.includes("conversación ha cambiado") ? 409 : 400 });
   }
 }

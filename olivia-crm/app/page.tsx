@@ -3,13 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Documentation, type DocumentRecord } from "./documentation";
 import { ContactCard, type Contact } from "./contact-card";
+import { Conversations } from "./conversations";
 
 type Product = { id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
-type Conversation = { id: string; channel: string; status: string; priority: string; handoff_status: string; internal_notes: string | null; updated_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
-type Message = { id: string; conversation_id: string; direction: string; body: string | null; external_message_id: string | null; created_at: string };
 type Document = DocumentRecord;
 type Touchpoint = { id: string; channel: string; source: string | null; campaign: string | null; medium: string | null; content: string | null; occurred_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
-type Dashboard = { products: Product[]; contacts: Contact[]; conversations: Conversation[]; messages: Message[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
+type Dashboard = { products: Product[]; contacts: Contact[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
 
 const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contactos","Contactos"],["catalogo","Catálogo"],["documentacion","Documentación"],["atribucion","Atribución"]];
 
@@ -29,6 +28,7 @@ export default function OliviaCrm() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("auth_error")) setNotice("El enlace no es válido o ha caducado. Solicita uno nuevo.");
+    if (new URLSearchParams(window.location.search).get("tab") === "conversaciones") setTab("conversaciones");
     load().catch(() => setNotice("No se pudo conectar con el CRM. Vuelve a intentarlo."));
   }, []);
 
@@ -102,7 +102,7 @@ export default function OliviaCrm() {
       {tab === "resumen" && <Summary data={data} />}
       {tab === "catalogo" && <section className="catalog">{data.products.map((product) => <ProductCard key={product.id} product={product} onSave={saveNotes} />)}</section>}
       {tab === "contactos" && <section className="record-list">{data.contacts.length ? data.contacts.map((contact) => <ContactCard key={contact.id + contact.updated_at} contact={contact} products={data.products} onSave={saveResource} />) : <Empty title="Aún no hay contactos" text="El primer flujo de Meta creará aquí los leads con su origen y consentimiento." />}</section>}
-      {tab === "conversaciones" && <section className="record-list">{data.conversations.length ? data.conversations.map((conversation) => <ConversationCard key={conversation.id} conversation={conversation} messages={data.messages.filter((message) => message.conversation_id === conversation.id)} onSave={saveResource} />) : <Empty title="Aún no hay conversaciones" text="La cola de Olivia está lista. Las conversaciones aparecerán al recibir el primer mensaje." />}</section>}
+      {tab === "conversaciones" && <Conversations products={data.products} onSave={saveResource} />}
       {tab === "documentacion" && <Documentation documents={data.documents} products={data.products} onSave={saveDocument} />}
       {tab === "atribucion" && <Attribution touchpoints={data.touchpoints} />}
     </section>
@@ -117,11 +117,6 @@ function ProductCard({ product, onSave }: { product: Product; onSave: (product: 
   const [notes, setNotes] = useState(product.internal_notes || "");
   const [tags, setTags] = useState(product.manual_tags?.join(", ") || "");
   return <article className="product-card"><div className="product-title">{product.image_url ? <img src={product.image_url} alt="" /> : <div className="image-placeholder" />}<div><h2>{product.name}</h2><a href={product.permalink} target="_blank">Ver en la tienda</a></div></div><div className="product-meta"><span>{product.price ? String(product.price) + " €" : "Sin precio"}</span><span className={product.stock_status === "instock" ? "stock yes" : "stock"}>{product.stock_status === "instock" ? "En stock" : "Sin stock"}</span></div><label>Anotaciones internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ej.: priorizar en campañas de otoño; revisar texto comercial…" /></label><label>Etiquetas manuales<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: top-venta, campaña-recetas" /></label><button onClick={() => onSave(product, notes, tags)}>Guardar anotaciones</button></article>;
-}
-
-function ConversationCard({ conversation, messages, onSave }: { conversation: Conversation; messages: Message[]; onSave: (resource: string, id: string, body: Record<string, unknown>) => Promise<boolean> }) {
-  const [status, setStatus] = useState(conversation.status); const [priority, setPriority] = useState(conversation.priority); const [handoff, setHandoff] = useState(conversation.handoff_status); const [notes, setNotes] = useState(conversation.internal_notes || ""); const person = conversation.contacts?.first_name || conversation.contacts?.phone || "Contacto";
-  return <article className="record-card"><div className="record-heading"><div><h2>{person}</h2><p>{conversation.channel} · Actualizada {new Date(conversation.updated_at).toLocaleString("es-ES")}</p></div><span className="badge">{status}</span></div><section className="message-thread" aria-label="Historial de mensajes"><h3>Historial</h3>{messages.length ? messages.map((message) => <div key={message.id} className={message.direction === "outbound" ? "message outbound" : "message inbound"}><span>{message.direction === "outbound" ? "Olivia" : person}</span><p>{message.body || "Contenido multimedia o sin texto"}</p><time>{new Date(message.created_at).toLocaleString("es-ES")}</time></div>) : <p className="thread-empty">Todavía no hay mensajes guardados para esta conversación.</p>}</section><div className="form-row"><label>Estado<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="open">Abierta</option><option value="closed">Cerrada</option><option value="paused">Pausada</option></select></label><label>Prioridad<select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="low">Baja</option><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option></select></label><label>Atención humana<select value={handoff} onChange={(event) => setHandoff(event.target.value)}><option value="bot">Olivia</option><option value="pending_human">Pendiente del equipo</option><option value="human">En manos del equipo</option><option value="resolved">Resuelta</option></select></label></div><label>Notas internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Contexto para quien retome la conversación…" /></label><button onClick={() => onSave("conversations", conversation.id, { status, priority, handoff_status: handoff, internal_notes: notes })}>Guardar seguimiento</button></article>;
 }
 
 function Attribution({ touchpoints }: { touchpoints: Touchpoint[] }) {
