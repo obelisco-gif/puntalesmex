@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -31,6 +31,8 @@ async function main() {
       savedDocument = { ...body.p_document, id: body.p_id || "00000000-0000-4000-8000-000000000010", updated_at: new Date().toISOString() };
       return res.end(JSON.stringify(savedDocument));
     }
+    if (req.url.startsWith("/rest/v1/rpc/olivia_save_contact")) { contactWrites++; return res.end(JSON.stringify(body.p_input)); }
+    if (req.url.startsWith("/rest/v1/rpc/olivia_save_commercial_entry")) { entryWrites++; return res.end(JSON.stringify(body.p_entry)); }
     if (req.url.startsWith("/rest/v1/product_documents")) return res.end(JSON.stringify(savedDocument ? [{
       ...savedDocument, product_document_products: savedDocument.catalog_product_ids.map(catalog_product_id => ({catalog_product_id}))
     }] : []));
@@ -80,12 +82,28 @@ async function main() {
     assert.equal((await request("/api/documents","POST",{...document,routing_packages:["always"]})).status,400,"permanent base must be general");
     assert.equal((await request("/api/crm/documents/"+createdDocument.id,"PATCH",{...document,routing_packages:[]})).status,400);
     assert.equal(documentWrites,2,"invalid documents must never reach database");
+    const contactPath = "/api/crm/contacts/00000000-0000-4000-8000-000000000020";
+    const contact = {stage:"purchase_intent",manual_tags:["bf2026_early_access"],expected_updated_at:new Date().toISOString(),commercial:{tastes:"Canela",objections:"Sin jengibre",buying_horizon:"Este mes",score_override:82}};
+    assert.equal((await request(contactPath,"PATCH",contact)).status,200);
+    assert.equal((await request(contactPath,"PATCH",{...contact,stage:"lead"})).status,400);
+    assert.equal((await request(contactPath,"PATCH",{...contact,commercial:{...contact.commercial,score_override:101}})).status,400);
+    assert.equal((await request(contactPath,"PATCH",contact,{origin:"https://attacker.invalid"})).status,403);
+    assert.equal(contactWrites,1);
+    const entryPath = "/api/crm/contact_entries/00000000-0000-4000-8000-000000000020";
+    const entry = {kind:"purchase",reference:"QA-123",details:"Compra comprobada",status:"confirmed",amount:19.99,quantity:1,occurred_on:"2026-11-04"};
+    assert.equal((await request(entryPath,"PATCH",entry)).status,200);
+    assert.equal((await request(entryPath,"PATCH",{...entry,reference:""})).status,400);
+    assert.equal((await request(entryPath,"PATCH",{...entry,amount:-1})).status,400);
+    assert.equal((await request(entryPath,"PATCH",{...entry,kind:"interest"})).status,400);
+    assert.equal(entryWrites,1);
     assert.equal((await request("/api/documents","POST",document,{origin:"https://attacker.invalid"})).status,403);
     assert.equal((await request("/api/auth/password","POST",{password:"short"})).status,400);
     assert.equal((await request("/api/auth/password","POST",{password:"new-test-only-password"})).status,200);
     assert.equal(updates,1);
     assert.equal((await request("/api/session","DELETE")).status,200);
     assert.equal((await request("/api/dashboard")).status,401,"logout must revoke access");
+    assert.equal((await request(contactPath,"PATCH",contact)).status,401);
+    assert.equal((await request(entryPath,"PATCH",entry)).status,401);
     assert.equal((await request("/api/session","POST",{email,password:"test-only-password"})).status,200);
     assert.equal((await request("/api/dashboard")).status,200);
     active = false;

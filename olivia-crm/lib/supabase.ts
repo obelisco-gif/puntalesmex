@@ -49,6 +49,10 @@ export async function rpc<T>(name: string, body: object): Promise<T> {
     method: "POST", headers: headers({ "content-type": "application/json" }),
     body: JSON.stringify(body), cache: "no-store"
   });
-  if (!response.ok) throw new Error("No se pudo guardar el documento. Comprueba que los productos sigan en el catálogo y vuelve a intentarlo.");
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    if (name === "olivia_save_contact" && String(result.message).includes("contacto ha cambiado")) throw new Error("El contacto ha cambiado. Actualiza la ficha antes de guardar.");
+    throw new Error("No se pudo guardar. Revisa los datos, actualiza la ficha y vuelve a intentarlo.");
+  }
   return response.json();
 }

@@ -77,6 +77,41 @@ contenido inmediatos y la exclusión de documentos archivados o internos.
 
 ## Validación
 
+## Ficha comercial y registro dentro del chat
+
+Contactos muestra ambos canales, nueve fases válidas, score automático con motivos
+y ajuste manual, gustos, objeciones, horizonte de compra y memoria de Olivia.
+contact_commercial_entries guarda intereses, descartes, consultas de pedido y
+compras. Las compras confirmadas las registra el equipo con referencia; el chat
+no puede confirmarlas. Reutilizar la referencia actualiza el registro.
+El catálogo WooCommerce actual no importa pedidos ni compras automáticamente.
+
+El contexto de ambos agentes incluye perfil, registros y score. El primer agente
+propone cambios con evidencia literal; olivia_conversation_actions_b64 valida el
+lote entrante reclamado y aplica las acciones antes del segundo agente. Una
+oferta no da de alta: se exige aceptación. El alta guarda etiqueta y permiso de
+WhatsApp y devuelve un resultado confirmado para que Olivia dé la bienvenida.
+No genera otra bienvenida por plantilla. Si falta email, ofrece ese canal y pide
+el correo; tener una dirección no equivale a tener permiso. Los conflictos de
+identidad se derivan al equipo. Los reintentos recuperan la misma decisión.
+
+Los cambios de perfil se combinan con la memoria existente y rechazan fichas
+desactualizadas. Las funciones y la tabla comercial son de acceso exclusivo del
+servidor. Las fases no conceden permisos de comunicaciones.
+
+SQL: database/commercial-contact.sql, database/conversation-actions.sql y
+database/commercial-context.sql. Ajustes del flujo: n8n/commercial-conversation.json.
+tests/commercial-contact.sql verifica rutas de un solo canal, deduplicación,
+registro conversacional, captura de email, score, compras, memoria y STOP dentro
+de una transacción con rollback. tests/visual-fixture.cjs permite revisar la UI
+local con datos ficticios. Ninguna de estas pruebas envía mensajes reales.
+
+Sigue pendiente conectar el Sheet real con la credencial Sadiet. Los flujos de
+integración y los interruptores de envío WhatsApp/Klaviyo siguen desactivados;
+no se activan como efecto secundario de esta ampliación.
+
+## Comprobaciones
+
 `npm ci`, `npm run build`, `node tests/auth-integration.cjs` y
 `node tests/document-routing.cjs`.
 La prueba HTTP usa un proveedor local simulado y no manda correos. La prueba de

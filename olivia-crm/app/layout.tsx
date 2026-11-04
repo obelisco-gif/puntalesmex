@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./styles.css";
 import "./auth.css";
 import "./documentation.css";
+import "./contacts.css";
 
 export const metadata: Metadata = {
   title: "Olivia CRM · Sadiet",

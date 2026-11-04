@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdmin, sameOrigin } from "../../../../../lib/auth";
 import { update, rpc } from "../../../../../lib/supabase";
 import { documentInput } from "../../../../../lib/document-input";
+import { contactInput, commercialEntryInput } from "../../../../../lib/contact-input";
 
 const editable: Record<string, string[]> = {
   contacts: ["stage", "internal_notes", "manual_tags", "preferences", "assigned_to"],
@@ -12,7 +13,8 @@ const editable: Record<string, string[]> = {
 const tables: Record<string, string> = {
   contacts: "contacts",
   conversations: "conversations",
-  documents: "product_documents"
+  documents: "product_documents",
+  contact_entries: "contact_commercial_entries"
 };
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ resource: string; id: string }> }) {
@@ -24,6 +26,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
 
   try {
     const incoming = await request.json();
+    if (resource === "contacts") return NextResponse.json(await rpc("olivia_save_contact", { p_id: id, p_input: contactInput(incoming) }));
+    if (resource === "contact_entries") return NextResponse.json(await rpc("olivia_save_commercial_entry", { p_contact: id, p_entry: commercialEntryInput(incoming) }));
     if (resource === "documents") {
       const input = documentInput(incoming);
       return NextResponse.json(await rpc("save_olivia_document", { p_document: input, p_id: id }));
@@ -39,6 +43,6 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
     const result = await update(tables[resource], id, body);
     return NextResponse.json(result[0]);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: resource === "documents" ? 400 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: ["documents","contacts","contact_entries"].includes(resource) ? 400 : 500 });
   }
 }

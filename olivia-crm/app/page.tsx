@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Documentation, type DocumentRecord } from "./documentation";
+import { ContactCard, type Contact } from "./contact-card";
 
 type Product = { id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
-type Contact = { id: string; first_name: string | null; email: string | null; phone: string | null; stage: string; source: string | null; manual_tags: string[]; internal_notes: string | null; preferences: Record<string, unknown>; assigned_to: string | null; updated_at: string };
 type Conversation = { id: string; channel: string; status: string; priority: string; handoff_status: string; internal_notes: string | null; updated_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
 type Message = { id: string; conversation_id: string; direction: string; body: string | null; external_message_id: string | null; created_at: string };
 type Document = DocumentRecord;
@@ -67,9 +67,11 @@ export default function OliviaCrm() {
   };
 
   const saveResource = async (resource: string, id: string, body: Record<string, unknown>) => {
+    try {
     const res = await fetch("/api/crm/" + resource + "/" + id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { setNotice("No se pudieron guardar los cambios."); return; }
-    setNotice("Cambios guardados."); load();
+    if (!res.ok) { const result = await res.json(); setNotice(result.error || "No se pudieron guardar los cambios."); return false; }
+    setNotice("Cambios guardados."); await load(); return true;
+    } catch { setNotice("No se pudo conectar. Inténtalo de nuevo."); return false; }
   };
 
   const saveNotes = (product: Product, notes: string, tags: string) => fetch("/api/catalog/" + product.id, {
@@ -99,7 +101,7 @@ export default function OliviaCrm() {
       {notice && <p className="notice">{notice}</p>}
       {tab === "resumen" && <Summary data={data} />}
       {tab === "catalogo" && <section className="catalog">{data.products.map((product) => <ProductCard key={product.id} product={product} onSave={saveNotes} />)}</section>}
-      {tab === "contactos" && <section className="record-list">{data.contacts.length ? data.contacts.map((contact) => <ContactCard key={contact.id} contact={contact} onSave={saveResource} />) : <Empty title="Aún no hay contactos" text="El primer flujo de Meta creará aquí los leads con su origen y consentimiento." />}</section>}
+      {tab === "contactos" && <section className="record-list">{data.contacts.length ? data.contacts.map((contact) => <ContactCard key={contact.id + contact.updated_at} contact={contact} products={data.products} onSave={saveResource} />) : <Empty title="Aún no hay contactos" text="El primer flujo de Meta creará aquí los leads con su origen y consentimiento." />}</section>}
       {tab === "conversaciones" && <section className="record-list">{data.conversations.length ? data.conversations.map((conversation) => <ConversationCard key={conversation.id} conversation={conversation} messages={data.messages.filter((message) => message.conversation_id === conversation.id)} onSave={saveResource} />) : <Empty title="Aún no hay conversaciones" text="La cola de Olivia está lista. Las conversaciones aparecerán al recibir el primer mensaje." />}</section>}
       {tab === "documentacion" && <Documentation documents={data.documents} products={data.products} onSave={saveDocument} />}
       {tab === "atribucion" && <Attribution touchpoints={data.touchpoints} />}
@@ -117,12 +119,7 @@ function ProductCard({ product, onSave }: { product: Product; onSave: (product: 
   return <article className="product-card"><div className="product-title">{product.image_url ? <img src={product.image_url} alt="" /> : <div className="image-placeholder" />}<div><h2>{product.name}</h2><a href={product.permalink} target="_blank">Ver en la tienda</a></div></div><div className="product-meta"><span>{product.price ? String(product.price) + " €" : "Sin precio"}</span><span className={product.stock_status === "instock" ? "stock yes" : "stock"}>{product.stock_status === "instock" ? "En stock" : "Sin stock"}</span></div><label>Anotaciones internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ej.: priorizar en campañas de otoño; revisar texto comercial…" /></label><label>Etiquetas manuales<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: top-venta, campaña-recetas" /></label><button onClick={() => onSave(product, notes, tags)}>Guardar anotaciones</button></article>;
 }
 
-function ContactCard({ contact, onSave }: { contact: Contact; onSave: (resource: string, id: string, body: Record<string, unknown>) => Promise<void> }) {
-  const [stage, setStage] = useState(contact.stage); const [notes, setNotes] = useState(contact.internal_notes || ""); const [tags, setTags] = useState(contact.manual_tags?.join(", ") || ""); const [assigned, setAssigned] = useState(contact.assigned_to || "");
-  return <article className="record-card"><div className="record-heading"><div><h2>{contact.first_name || "Sin nombre"}</h2><p>{contact.email || contact.phone || "Sin datos de contacto"} · {contact.source || "Origen sin definir"}</p></div><span className="badge">{stage}</span></div><div className="form-row"><label>Etapa<select value={stage} onChange={(event) => setStage(event.target.value)}><option value="lead">Lead</option><option value="qualified">Cualificado</option><option value="customer">Cliente</option><option value="nurturing">Seguimiento</option><option value="lost">No interesado</option></select></label><label>Responsable<input value={assigned} onChange={(event) => setAssigned(event.target.value)} placeholder="Ej.: Sergio" /></label></div><label>Notas internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><label>Etiquetas<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: meta, recetas" /></label><button onClick={() => onSave("contacts", contact.id, { stage, internal_notes: notes, manual_tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean), assigned_to: assigned || null })}>Guardar contacto</button></article>;
-}
-
-function ConversationCard({ conversation, messages, onSave }: { conversation: Conversation; messages: Message[]; onSave: (resource: string, id: string, body: Record<string, unknown>) => Promise<void> }) {
+function ConversationCard({ conversation, messages, onSave }: { conversation: Conversation; messages: Message[]; onSave: (resource: string, id: string, body: Record<string, unknown>) => Promise<boolean> }) {
   const [status, setStatus] = useState(conversation.status); const [priority, setPriority] = useState(conversation.priority); const [handoff, setHandoff] = useState(conversation.handoff_status); const [notes, setNotes] = useState(conversation.internal_notes || ""); const person = conversation.contacts?.first_name || conversation.contacts?.phone || "Contacto";
   return <article className="record-card"><div className="record-heading"><div><h2>{person}</h2><p>{conversation.channel} · Actualizada {new Date(conversation.updated_at).toLocaleString("es-ES")}</p></div><span className="badge">{status}</span></div><section className="message-thread" aria-label="Historial de mensajes"><h3>Historial</h3>{messages.length ? messages.map((message) => <div key={message.id} className={message.direction === "outbound" ? "message outbound" : "message inbound"}><span>{message.direction === "outbound" ? "Olivia" : person}</span><p>{message.body || "Contenido multimedia o sin texto"}</p><time>{new Date(message.created_at).toLocaleString("es-ES")}</time></div>) : <p className="thread-empty">Todavía no hay mensajes guardados para esta conversación.</p>}</section><div className="form-row"><label>Estado<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="open">Abierta</option><option value="closed">Cerrada</option><option value="paused">Pausada</option></select></label><label>Prioridad<select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option></select></label><label>Atención humana<select value={handoff} onChange={(event) => setHandoff(event.target.value)}><option value="bot">Olivia</option><option value="requested">Solicitada</option><option value="human">En manos del equipo</option></select></label></div><label>Notas internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Contexto para quien retome la conversación…" /></label><button onClick={() => onSave("conversations", conversation.id, { status, priority, handoff_status: handoff, internal_notes: notes })}>Guardar seguimiento</button></article>;
 }
