@@ -52,6 +52,7 @@ export async function rpc<T>(name: string, body: object): Promise<T> {
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     if (["olivia_save_conversation","olivia_manual_reply"].includes(name) && String(result.message).includes("conversación ha cambiado")) throw new Error("La conversación ha cambiado. Actualízala antes de guardar.");
+    if (name === "olivia_save_handoff" && String(result.message).includes("derivación ha cambiado")) throw new Error("La derivación ha cambiado. Actualiza antes de guardar.");
     if (name === "olivia_manual_reply") {
       const message=String(result.message||"");
       if (["Esta conversación no tiene WhatsApp disponible","Este contacto ha solicitado la baja de WhatsApp","La ventana de respuesta de WhatsApp está cerrada. Es necesario que el contacto vuelva a escribir","Identificador de envío ya utilizado"].includes(message)) throw new Error(message);

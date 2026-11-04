@@ -1,0 +1,9 @@
+{
+  "workflowId": "v1OCEolcgZesKiVV",
+  "node": "Preparar bienvenidas autorizadas",
+  "query": "select public.olivia_prepare_welcome() as welcome,public.olivia_prepare_handoff_notifications() as handoff;",
+  "status": "Prepared on the already active workflow; no recipients or sending flags enabled",
+  "dispatchKind": "human_handoff_alert",
+  "templateComponents": "Returned by olivia_claim_outbound_v2 per dispatch, consumed by existing Enviar plantilla API node",
+  "referenceReadOnly": "Dina outbound_message_dispatcher MvTrTiRwPHViH7wu"
+}

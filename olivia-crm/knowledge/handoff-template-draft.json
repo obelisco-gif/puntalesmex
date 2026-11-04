@@ -1,0 +1,40 @@
+{
+  "name": "olivia_handoff_equipo",
+  "language": "es",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Olivia necesita ayuda del equipo Sadiet.\nContacto: {{1}}\nTeléfono: {{2}}\nMotivo: {{3}}\nResumen: {{4}}\nFicha: {{5}}\nTipo: {{6}}",
+      "example": {
+        "body_text": [
+          [
+            "Contacto de ejemplo",
+            "+34999000088",
+            "Consulta de pedido",
+            "Solicita revisar su pedido de ejemplo.",
+            "https://olivia-crm-weld.vercel.app/?tab=conversaciones&conversation=00000000-0000-4000-8000-000000000001",
+            "Derivación de Olivia"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Aviso interno del equipo Sadiet."
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Abrir conversación",
+          "url": "https://olivia-crm-weld.vercel.app/?tab=conversaciones&conversation={{1}}",
+          "example": [
+            "https://olivia-crm-weld.vercel.app/?tab=conversaciones&conversation=00000000-0000-4000-8000-000000000001"
+          ]
+        }
+      ]
+    }
+  ]
+}

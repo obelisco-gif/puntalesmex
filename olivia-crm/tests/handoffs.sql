@@ -1,0 +1,44 @@
+begin;
+do $$
+declare c uuid;v uuid;h uuid;did uuid;first_h uuid;stamp timestamptz;r jsonb;claimed jsonb;n integer;
+begin
+ insert into public.contacts(phone,first_name,source) values('+34999000088','Demo handoff','crm') returning id into c;
+ insert into public.conversations(contact_id,channel,handoff_status,priority) values(c,'whatsapp','pending_human','high') returning id into v;
+ insert into public.agent_runs(contact_id,conversation_id,agent_role,status,decision) values(c,v,'conversation','completed','{"needs_human":true,"intent":"order","summary":"Solicita revisar su pedido DEMO-100."}');
+ select id into h from public.olivia_handoffs where conversation_id=v;
+ if h is null or (select summary from public.olivia_handoffs where id=h)<>'Solicita revisar su pedido DEMO-100.' then raise exception 'Agent handoff not registered with fresh summary'; end if;
+ insert into public.agent_runs(contact_id,conversation_id,agent_role,status,decision) values(c,v,'conversation','completed','{"needs_human":true,"intent":"order","summary":"Pendiente de revisión del pedido DEMO-100."}');
+ if (select count(*) from public.olivia_handoffs where conversation_id=v)<>1 then raise exception 'Repeated agent run duplicated open case'; end if;
+ r:=public.olivia_prepare_handoff_notifications();
+ if (r->>'prepared')::integer<>0 or exists(select 1 from public.outbound_dispatches where payload->>'kind'='human_handoff_alert') then raise exception 'Unconfigured alert prepared'; end if;
+ update public.olivia_config set value=value||'{"enabled":true,"recipient_confirmed":true,"recipient_phone":"+34999000077","template_approved":true}'::jsonb where key='handoff_alerts';
+ r:=public.olivia_prepare_handoff_notifications();
+ if (r->>'prepared')::integer<>1 or (public.olivia_prepare_handoff_notifications()->>'prepared')::integer<>0 then raise exception 'Alert deduplication failed'; end if;
+ select notification_dispatch_id into did from public.olivia_handoffs where id=h;
+ if exists(select 1 from public.outbound_dispatches where id=did and (contact_id is not null or conversation_id is not null or message_id is not null)) then raise exception 'Internal alert attached to customer history'; end if;
+ -- Customer STOP must not route or cancel the internal staff notification.
+ insert into public.contact_channel_consents(contact_id,channel,status,source) values(c,'whatsapp','revoked','crm');
+ select updated_at into stamp from public.conversations where id=v;
+ perform public.olivia_save_conversation(v,jsonb_build_object('handoff_status','human','expected_updated_at',stamp));
+ if (select status from public.outbound_dispatches where id=did)<>'pending' or (select status from public.olivia_handoffs where id=h)<>'active' then raise exception 'Takeover cancelled internal alert or failed to activate case'; end if;
+ select x into claimed from public.olivia_claim_outbound_v2(1)x;
+ if claimed->>'phone'<>'+34999000077' or claimed->>'dispatch_id'<>did::text or claimed->>'template_name'<>'olivia_handoff_equipo' then raise exception 'Wrong internal recipient/template'; end if;
+ if jsonb_typeof(claimed#>'{template_components,0,parameters,0,text}')<>'string' or claimed#>>'{template_components,0,parameters,0,text}'<>'Demo handoff' or claimed#>>'{template_components,1,parameters,0,text}'<>v::text then raise exception 'Template parameters incorrect'; end if;
+ update public.outbound_dispatches set status='failed',error_message='Fallo simulado, sin envío' where id=did;
+ if not exists(select 1 from public.olivia_handoff_events where handoff_id=h and event_type='notification_failed') then raise exception 'Missing failure audit'; end if;
+ select updated_at into stamp from public.conversations where id=v;
+ perform public.olivia_save_conversation(v,jsonb_build_object('handoff_status','bot','expected_updated_at',stamp));
+ if (select status from public.olivia_handoffs where id=h)<>'active' then raise exception 'Returning chat resolved the case implicitly'; end if;
+ select updated_at into stamp from public.olivia_handoffs where id=h;
+ perform public.olivia_save_handoff(h,jsonb_build_object('status','resolved','assigned_to','Equipo demo','internal_notes','Revisado','expected_updated_at',stamp),gen_random_uuid());
+ first_h:=h;h:=public.olivia_register_handoff(v,'olivia','Nueva solicitud','Otro caso distinto.');
+ if h=first_h then raise exception 'New escalation reused closed case'; end if;
+ perform public.olivia_prepare_handoff_notifications();
+ select updated_at,notification_dispatch_id into stamp,did from public.olivia_handoffs where id=h;
+ perform public.olivia_save_handoff(h,jsonb_build_object('status','resolved','expected_updated_at',stamp),gen_random_uuid());
+ if (select status from public.outbound_dispatches where id=did)<>'cancelled' then raise exception 'Closed case alert remained sendable'; end if;
+ if (public.olivia_handoff_directory(1,'','Demo handoff')->>'total')::integer<>2 then raise exception 'Directory does not show case history'; end if;
+ if has_function_privilege('anon','public.olivia_handoff_directory(integer,text,text)','execute') or has_table_privilege('authenticated','public.olivia_handoffs','select') then raise exception 'Handoff data publicly exposed'; end if;
+end;$$;
+select 'PASS: automatic and manual cases, deduplication, pending configuration, isolated internal recipient, STOP/control independence, template mapping, delivery audit, explicit closure and new-case history.' as result;
+rollback;

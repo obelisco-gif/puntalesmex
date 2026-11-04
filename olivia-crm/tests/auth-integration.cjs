@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0, manualWrites = 0;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0, manualWrites = 0, handoffWrites = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -30,6 +30,8 @@ async function main() {
     if (req.url.startsWith("/rest/v1/rpc/olivia_contact_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099")?null:{id:body.p_id}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50,open_total:0}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099") ? null : {conversation:{id:body.p_id},messages:[],contact:{id:"fixture"},has_older:false}));
+    if (req.url.startsWith("/rest/v1/rpc/olivia_handoff_directory")) return res.end(JSON.stringify({rows:[],total:0,page:1,page_size:50,settings:{enabled:false,recipient_configured:false,template_approved:false}}));
+    if (req.url.startsWith("/rest/v1/rpc/olivia_save_handoff")) {handoffWrites++;assert.equal(body.p_actor,user.id);return res.end(JSON.stringify(body.p_input));}
     if (req.url.startsWith("/rest/v1/rpc/olivia_manual_reply")) { manualWrites++; assert.equal(body.p_actor,user.id,"actor must come from verified session"); return res.end(JSON.stringify({dispatch_id:"test-dispatch",status:"pending",outbound_enabled:false})); }
     if (req.url.startsWith("/rest/v1/rpc/olivia_save_conversation")) { conversationWrites++; return res.end(JSON.stringify({conversation:body.p_input,in_flight:0})); }
     if (req.url.startsWith("/rest/v1/rpc/save_olivia_document")) {
@@ -102,6 +104,15 @@ async function main() {
     assert.equal((await request(replyPath,"POST",{...reply,request_id:"invalid"})).status,400);
     assert.equal((await request(replyPath,"POST",reply,{origin:"https://attacker.invalid"})).status,403);
     assert.equal(manualWrites,1);
+    const handoffPath="/api/handoffs/00000000-0000-4000-8000-000000000888";
+    const handoff={status:"active",assigned_to:"Equipo prueba",internal_notes:"Revisar",expected_updated_at:new Date().toISOString()};
+    assert.equal((await request("/api/handoffs")).status,200);
+    assert.equal((await request("/api/handoffs?status=invalid")).status,400);
+    assert.equal((await request("/api/handoffs?page=-1")).status,400);
+    assert.equal((await request(handoffPath,"PATCH",handoff)).status,200);
+    assert.equal((await request(handoffPath,"PATCH",{...handoff,status:"invalid"})).status,400);
+    assert.equal((await request(handoffPath,"PATCH",handoff,{origin:"https://attacker.invalid"})).status,403);
+    assert.equal(handoffWrites,1);
     const document = { title:"Guía conjunta",content:"Contenido de prueba",approval_status:"draft",routing_packages:["commercial","black_friday","tema_nuevo"],catalog_product_ids:["00000000-0000-4000-8000-000000000002","00000000-0000-4000-8000-000000000003"],source_url:"https://example.invalid/fuente" };
     const created = await request("/api/documents","POST",document);
     assert.equal(created.status,201);
@@ -145,6 +156,8 @@ async function main() {
     assert.equal(updates,1);
     assert.equal((await request("/api/session","DELETE")).status,200);
     assert.equal((await request("/api/dashboard")).status,401,"logout must revoke access");
+    assert.equal((await request("/api/handoffs")).status,401);
+    assert.equal((await request(handoffPath,"PATCH",handoff)).status,401);
     assert.equal((await request(replyPath,"POST",reply)).status,401);
     assert.equal((await request("/api/contacts")).status,401);
     assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000020")).status,401);
