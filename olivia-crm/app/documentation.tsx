@@ -9,7 +9,7 @@ const topics: Record<string,string> = {
   storage:"Conservación", safety:"Precauciones", comparison:"Comparativas", faq:"Preguntas frecuentes",
   black_friday:"Black Friday", early_access:"Acceso anticipado", orders:"Pedidos", payments:"Pagos",
   shipping:"Envíos", returns:"Devoluciones", club:"Club Sadiet", support:"Atención al cliente",
-  reference:"Fuentes y recursos", always:"Voz de marca", opt_out:"Bajas y STOP", internal_ops:"Uso interno"
+  reference:"Fuentes y recursos", always:"Base permanente", opt_out:"Bajas y STOP", internal_ops:"Uso interno"
 };
 const statusLabels: Record<string,string> = { draft:"Borrador", approved:"Aprobado para Olivia", archived:"Archivado" };
 const label = (topic: string) => topics[topic] || topic.replaceAll("_"," ");
@@ -55,6 +55,7 @@ function DocumentEditor({ document, products, availableTopics, onSave }: {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedTopics.length) { setError("Selecciona al menos un tema."); return; }
+    if (selectedTopics.includes("always") && selectedProducts.length) { setError("La Base permanente debe ser general. Quita los productos relacionados para usarla en todos los turnos."); return; }
     setBusy(true); setError("");
     try {
       const ok = await onSave(document?.id || null, { title,content,source_url:source,approval_status:status,routing_packages:selectedTopics,catalog_product_ids:selectedProducts });
@@ -76,6 +77,7 @@ function DocumentEditor({ document, products, availableTopics, onSave }: {
       <div className="doc-topic-options">{allTopics.map(topic=><label className="doc-option" key={topic}><input type="checkbox" checked={selectedTopics.includes(topic)} onChange={()=>setSelectedTopics(values=>toggle(values,topic))} /><span>{label(topic)}</span></label>)}</div>
       <div className="doc-topic-create"><label htmlFor={id+"topic"}>Nuevo tema<input id={id+"topic"} value={newTopic} maxLength={64} onChange={e=>setNewTopic(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addTopic();}}} placeholder="Ej.: conservación" /></label><button className="secondary" type="button" onClick={addTopic}>Añadir tema</button></div>
       {selectedTopics.includes("internal_ops") && <p>Los documentos de uso interno no se incluyen en las respuestas de Olivia.</p>}
+      {selectedTopics.includes("always") && <p>Base permanente: cuando esté aprobado, ambos agentes cargarán este documento en cada turno. Úsalo para tono, idioma, saludos, políticas y orientación comercial. Mantén aquí un resumen breve de la promoción; los detalles pueden ir en otros documentos.</p>}
     </fieldset>
     <div className="form-row"><label htmlFor={id+"state"}>Estado<select id={id+"state"} value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(statusLabels).map(([value,name])=><option key={value} value={value}>{name}</option>)}</select></label><label htmlFor={id+"source"}>Fuente opcional<input id={id+"source"} type="url" value={source} onChange={e=>setSource(e.target.value)} placeholder="https://…" /></label></div>
     <button disabled={busy}>{busy ? "Guardando…" : document ? "Guardar documento" : "Crear documento"}</button>

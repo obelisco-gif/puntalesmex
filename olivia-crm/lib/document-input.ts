@@ -7,6 +7,7 @@ export function documentInput(value: unknown) {
   if (!Array.isArray(input.catalog_product_ids) || input.catalog_product_ids.length > 100 || !input.catalog_product_ids.every(id => typeof id === "string" && uuid.test(id))) throw new Error("Selecciona productos válidos del catálogo.");
   if (!Array.isArray(input.routing_packages) || input.routing_packages.length < 1 || input.routing_packages.length > 20 || !input.routing_packages.every(topic => typeof topic === "string" && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(topic))) throw new Error("Selecciona entre 1 y 20 temas válidos.");
   const status = input.approval_status || "draft";
+  if (input.routing_packages.includes("always") && input.catalog_product_ids.length) throw new Error("La Base permanente debe ser general, sin productos relacionados.");
   if (!["draft","approved","archived"].includes(String(status))) throw new Error("Estado no válido.");
   const source = typeof input.source_url === "string" ? input.source_url.trim() : "";
   if (source) {

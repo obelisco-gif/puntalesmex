@@ -77,6 +77,7 @@ async function main() {
     assert.equal(savedDocument.catalog_product_ids.length,1);
     assert.equal((await request("/api/documents","POST",{...document,catalog_product_ids:["invalid-id"]})).status,400);
     assert.equal((await request("/api/documents","POST",{...document,source_url:"javascript:alert(1)"})).status,400);
+    assert.equal((await request("/api/documents","POST",{...document,routing_packages:["always"]})).status,400,"permanent base must be general");
     assert.equal((await request("/api/crm/documents/"+createdDocument.id,"PATCH",{...document,routing_packages:[]})).status,400);
     assert.equal(documentWrites,2,"invalid documents must never reach database");
     assert.equal((await request("/api/documents","POST",document,{origin:"https://attacker.invalid"})).status,403);

@@ -53,9 +53,27 @@ coincide uno de esos productos; los generales se buscan por tema. El validador
 del primer agente acepta temas personalizados presentes en el índice, rechaza
 temas inventados o internos y elimina los productos al tramitar STOP.
 
-Los ajustes de n8n están exportados en n8n/document-routing.json y preparados en
-el borrador del flujo de conversación. Su publicación se gestiona por separado.
-La versión antigua recibe también los temas y relaciones en su contexto.
+Los ajustes de n8n están exportados en n8n/document-routing.json y
+n8n/permanent-base.json y aplicados al flujo publicado de conversación.
+La lectura de documentación usa las relaciones de producto y los temas.
+
+## Base permanente editable
+
+Marcar el tema **Base permanente** en un documento general y aprobarlo hace que
+ambos agentes reciban su contenido completo en cada turno. En el CRM existe
+**Base permanente de comunicación y orientación comercial**, con idioma, tono,
+saludos, políticas, resumen de la promoción y criterios de compra o Early Access.
+
+El contenido se lee de product_documents al preparar el contexto de cada agente.
+Una edición aprobada se aplica al siguiente turno sin volver a publicar n8n ni
+Vercel. Borradores, archivados y documentos de uso interno no se inyectan.
+La base es general y el editor exige dejar vacíos los productos relacionados.
+Los detalles de producto y campaña se mantienen en los documentos específicos.
+
+Las consultas de lectura están en database/permanent-base-read-queries.sql y los
+ajustes de los agentes en n8n/permanent-base.json. La prueba
+tests/permanent-base.sql confirma la lectura en ambas etapas, los cambios de
+contenido inmediatos y la exclusión de documentos archivados o internos.
 
 ## Validación
 
