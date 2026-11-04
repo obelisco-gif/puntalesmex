@@ -108,6 +108,33 @@ Sigue pendiente conectar el Sheet real con la credencial Sadiet. Los flujos de
 integración y los interruptores de envío WhatsApp/Klaviyo siguen desactivados;
 no se activan como efecto secundario de esta ampliación.
 
+## Memoria del agente y pedidos de WooCommerce
+
+El primer agente tiene `save_name`, `save_atributos` y `save_tags`, con el patrón
+de Dina aplicado exclusivamente a Olivia. Cada herramienta se vincula al
+contacto, conversación y lote entrante y exige evidencia literal. Después se
+releen los datos antes del segundo agente. El nombre puede corregirse y se pide
+si falta, sin convertirlo en requisito ni repetir preguntas ignoradas.
+
+`lead_attributes` guarda atributos tipados por clave. Las listas se combinan y
+las correcciones del equipo prevalecen. `lead_states` persiste fase, score,
+motivo, temperatura y resumen. El CRM muestra y edita nombre y atributos. Los
+registros anteriores alimentan esa memoria. Si las herramientas ya guardaron
+los atributos, no se vuelven a escribir desde `commercial_updates`.
+
+Los pedidos se leen con la credencial WooCommerce: páginas de pedidos
+modificados, solapamiento de cinco minutos y cursor confirmado solo al terminar.
+Se guarda una copia mínima, se cruzan email y teléfono normalizados sin unir
+identidades ambiguas y se conservan los estados propios de CTT Express. Se
+distinguen compras pagadas, cancelaciones y reembolsos. Los productos habituales
+requieren al menos dos pedidos. Ambos agentes y el CRM reciben el historial y
+la fecha de sincronización. Importar pedidos no concede permisos de marketing,
+no modifica pedidos ni envía comunicaciones.
+
+Las tablas nuevas tienen RLS y acceso de servidor. Los contactos internos de
+prueba se excluyen del listado. `node tests/sql-local.cjs` ejecuta los casos en
+PostgreSQL local desechable; `node tests/woo-orders.cjs` verifica normalización.
+
 ## Comprobaciones
 
 `npm ci`, `npm run build`, `node tests/auth-integration.cjs` y

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdmin, sameOrigin } from "../../../../../lib/auth";
 import { update, rpc } from "../../../../../lib/supabase";
 import { documentInput } from "../../../../../lib/document-input";
-import { contactInput, commercialEntryInput } from "../../../../../lib/contact-input";
+import { contactInput, commercialEntryInput, attributeInput } from "../../../../../lib/contact-input";
 
 const editable: Record<string, string[]> = {
   contacts: ["stage", "internal_notes", "manual_tags", "preferences", "assigned_to"],
@@ -14,7 +14,8 @@ const tables: Record<string, string> = {
   contacts: "contacts",
   conversations: "conversations",
   documents: "product_documents",
-  contact_entries: "contact_commercial_entries"
+  contact_entries: "contact_commercial_entries",
+  attributes: "lead_attributes"
 };
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ resource: string; id: string }> }) {
@@ -26,6 +27,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
 
   try {
     const incoming = await request.json();
+    if (resource === "attributes") {
+      const input = attributeInput(incoming);
+      return NextResponse.json(await rpc("olivia_save_attribute_crm", { p_contact: id, p_key: input.attribute_key, p_value: input.value_jsonb }));
+    }
     if (resource === "contacts") return NextResponse.json(await rpc("olivia_save_contact", { p_id: id, p_input: contactInput(incoming) }));
     if (resource === "contact_entries") return NextResponse.json(await rpc("olivia_save_commercial_entry", { p_contact: id, p_entry: commercialEntryInput(incoming) }));
     if (resource === "documents") {
@@ -49,6 +54,6 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
     const result = await update(tables[resource], id, body);
     return NextResponse.json(result[0]);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: ["documents","contacts","contact_entries"].includes(resource) ? 400 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar" }, { status: ["documents","contacts","contact_entries","attributes"].includes(resource) ? 400 : 500 });
   }
 }

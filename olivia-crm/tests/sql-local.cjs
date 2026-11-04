@@ -1,0 +1,21 @@
+const {PGlite}=require('@electric-sql/pglite');
+const fs=require('node:fs');
+const path=require('node:path');
+async function main(){
+ const db=new PGlite();
+ try{
+  await db.exec(fs.readFileSync('tests/fixtures-base.sql','utf8'));
+  const original=fs.readFileSync('tests/fixtures-core.sql','utf8');
+  // Core functions and jobs; the original ingress integration is outside these tests.
+  await db.exec(original);
+  for(const file of ['database/document-relations.sql','database/commercial-contact.sql','database/conversation-actions.sql','database/commercial-context.sql','database/agent-attributes.sql','database/agent-attributes-context.sql','database/woo-orders.sql','database/woo-orders-context.sql']){
+   try{await db.exec(fs.readFileSync(file,'utf8'));}catch(e){throw new Error(file+': '+e.message,{cause:e});}
+  }
+  await db.exec("insert into public.catalog_products(woocommerce_product_id,name,price,permalink) values(10,'Colágeno marino Peptan® - Aroma naranja - 500g',42.50,'https://example.invalid/colageno');");
+  for(const file of ['tests/commercial-contact.sql','tests/agent-attributes.sql','tests/woo-orders.sql']){
+   try{const result=await db.exec(fs.readFileSync(file,'utf8'));console.log(file+': '+result.flatMap(r=>r.rows??[]).map(r=>r.result).filter(Boolean).join(' '));}catch(e){throw new Error(file+': '+e.message,{cause:e});}
+  }
+  console.log('PASS: disposable local PostgreSQL; no remote database or external messages.');
+ }finally{await db.close();}
+}
+main().catch(e=>{console.error(e.message);console.error(e.cause?.where??'');process.exitCode=1;});

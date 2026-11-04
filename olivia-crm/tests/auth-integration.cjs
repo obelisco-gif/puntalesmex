@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -32,6 +32,7 @@ async function main() {
       return res.end(JSON.stringify(savedDocument));
     }
     if (req.url.startsWith("/rest/v1/rpc/olivia_save_contact")) { contactWrites++; return res.end(JSON.stringify(body.p_input)); }
+    if (req.url.startsWith("/rest/v1/rpc/olivia_save_attribute_crm")) { attributeWrites++; return res.end(JSON.stringify({saved:true,attribute_key:body.p_key,value_jsonb:body.p_value})); }
     if (req.url.startsWith("/rest/v1/rpc/olivia_save_commercial_entry")) { entryWrites++; return res.end(JSON.stringify(body.p_entry)); }
     if (req.url.startsWith("/rest/v1/product_documents")) return res.end(JSON.stringify(savedDocument ? [{
       ...savedDocument, product_document_products: savedDocument.catalog_product_ids.map(catalog_product_id => ({catalog_product_id}))
@@ -89,6 +90,13 @@ async function main() {
     assert.equal((await request(contactPath,"PATCH",{...contact,commercial:{...contact.commercial,score_override:101}})).status,400);
     assert.equal((await request(contactPath,"PATCH",contact,{origin:"https://attacker.invalid"})).status,403);
     assert.equal(contactWrites,1);
+    const attrPath="/api/crm/attributes/00000000-0000-4000-8000-000000000020";
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"preferred_products",value_jsonb:["Colágeno"]})).status,200);
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"__proto__",value_jsonb:"bad"})).status,400);
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"preferred_products",value_jsonb:{script:"bad"}})).status,400);
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"preferred_products",value_jsonb:[]})).status,400);
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"city",value_jsonb:"Madrid"},{origin:"https://attacker.invalid"})).status,403);
+    assert.equal(attributeWrites,1);
     const entryPath = "/api/crm/contact_entries/00000000-0000-4000-8000-000000000020";
     const entry = {kind:"purchase",reference:"QA-123",details:"Compra comprobada",status:"confirmed",amount:19.99,quantity:1,occurred_on:"2026-11-04"};
     assert.equal((await request(entryPath,"PATCH",entry)).status,200);
@@ -103,6 +111,7 @@ async function main() {
     assert.equal((await request("/api/session","DELETE")).status,200);
     assert.equal((await request("/api/dashboard")).status,401,"logout must revoke access");
     assert.equal((await request(contactPath,"PATCH",contact)).status,401);
+    assert.equal((await request(attrPath,"PATCH",{attribute_key:"city",value_jsonb:"Madrid"})).status,401);
     assert.equal((await request(entryPath,"PATCH",entry)).status,401);
     assert.equal((await request("/api/session","POST",{email,password:"test-only-password"})).status,200);
     assert.equal((await request("/api/dashboard")).status,200);
