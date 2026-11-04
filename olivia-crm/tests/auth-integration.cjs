@@ -26,6 +26,8 @@ async function main() {
       return res.end(JSON.stringify(user));
     }
     if (req.url.startsWith("/auth/v1/logout")) { active = false; res.statusCode = 204; return res.end(); }
+    if (req.url.startsWith("/rest/v1/rpc/olivia_contact_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50}));
+    if (req.url.startsWith("/rest/v1/rpc/olivia_contact_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099")?null:{id:body.p_id}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50,open_total:0}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099") ? null : {conversation:{id:body.p_id},messages:[],contact:{id:"fixture"},has_older:false}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_manual_reply")) { manualWrites++; assert.equal(body.p_actor,user.id,"actor must come from verified session"); return res.end(JSON.stringify({dispatch_id:"test-dispatch",status:"pending",outbound_enabled:false})); }
@@ -73,6 +75,12 @@ async function main() {
     assert.equal(emails,1);
     assert.equal((await request("/auth/callback?code=valid-code&next=%2Freset-password")).headers.get("location"),base+"/reset-password");
     assert.equal((await request("/api/dashboard")).status,200,"verified allowlisted session reads CRM");
+    assert.equal((await request("/api/contacts?page=2&q=demo")).status,200);
+    assert.equal((await request("/api/contacts?page=-1")).status,400);
+    assert.equal((await request("/api/contacts?stage=invalid")).status,400);
+    assert.equal((await request("/api/contacts/invalid")).status,400);
+    assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000020")).status,200);
+    assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000099")).status,404);
     const convoPath="/api/crm/conversations/00000000-0000-4000-8000-000000000020";
     const convo={handoff_status:"human",expected_updated_at:new Date().toISOString()};
     assert.equal((await request("/api/conversations?page=2&q=demo")).status,200);
@@ -138,6 +146,8 @@ async function main() {
     assert.equal((await request("/api/session","DELETE")).status,200);
     assert.equal((await request("/api/dashboard")).status,401,"logout must revoke access");
     assert.equal((await request(replyPath,"POST",reply)).status,401);
+    assert.equal((await request("/api/contacts")).status,401);
+    assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000020")).status,401);
     assert.equal((await request(contactPath,"PATCH",contact)).status,401);
     assert.equal((await request(attrPath,"PATCH",{attribute_key:"city",value_jsonb:"Madrid"})).status,401);
     assert.equal((await request(entryPath,"PATCH",entry)).status,401);

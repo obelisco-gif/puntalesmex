@@ -42,7 +42,7 @@ export function Conversations({products,onSave}:Props){
  </section>;
 }
 
-function ConversationDetail({id,products,onSave,onBack}:Props&{id:string;onBack:()=>void}){
+export function ConversationDetail({id,products,onSave,onBack}:Props&{id:string;onBack:()=>void}){
  const [detail,setDetail]=useState<Detail|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[older,setOlder]=useState(false),[revision,setRevision]=useState(0);
  const [reply,setReply]=useState("");
  const replyRequest=useRef<{body:string;id:string}|null>(null);

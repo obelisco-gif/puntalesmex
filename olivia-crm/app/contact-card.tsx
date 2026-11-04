@@ -8,7 +8,7 @@ type Profile = { tastes?: string; objections?: string; buying_horizon?: string; 
 export type Contact = { id: string; first_name: string | null; email: string | null; phone: string | null; stage: string; source: string | null; manual_tags: string[]; internal_notes: string | null; preferences: { commercial?: Profile; olivia?: { summary?: string; pending_question?: string; temperature?: string } }; assigned_to: string | null; updated_at: string; commercial_entries: Entry[]; attribute_records?: AttributeRecord[]; purchase_history?: PurchaseHistory; score: { value: number; automatic: number; manual: boolean; reasons: { reason: string; points: number }[] } };
 type Product = { id: string; name: string };
 type Save = (resource: string, id: string, body: Record<string, unknown>) => Promise<boolean>;
-const stages = [["new","Nuevo"],["engaged","En conversación"],["qualified","Necesidad identificada"],["recommended","Recomendación realizada"],["purchase_intent","Intención de compra"],["customer","Cliente"],["on_hold","En seguimiento"],["lost","Sin interés actual"],["unsubscribed","Baja comercial"]];
+export const stages = [["new","Nuevo"],["engaged","En conversación"],["qualified","Necesidad identificada"],["recommended","Recomendación realizada"],["purchase_intent","Intención de compra"],["customer","Cliente"],["on_hold","En seguimiento"],["lost","Sin interés actual"],["unsubscribed","Baja comercial"]];
 const kinds: Record<string,string> = { interest: "Le interesa", avoid: "Prefiere evitar", order_inquiry: "Consulta de pedido", purchase: "Compra" };
 const statuses: Record<string,string> = { open: "Abierto", resolved: "Resuelto", declared: "Declarada, sin verificar", confirmed: "Confirmada", cancelled: "Cancelado" };
 

@@ -2,13 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Documentation, type DocumentRecord } from "./documentation";
-import { ContactCard, type Contact } from "./contact-card";
+import { Contacts } from "./contacts";
 import { Conversations } from "./conversations";
 
 type Product = { id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
 type Document = DocumentRecord;
 type Touchpoint = { id: string; channel: string; source: string | null; campaign: string | null; medium: string | null; content: string | null; occurred_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
-type Dashboard = { products: Product[]; contacts: Contact[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
+type Dashboard = { products: Product[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
 
 const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contactos","Contactos"],["catalogo","Catálogo"],["documentacion","Documentación"],["atribucion","Atribución"]];
 
@@ -28,8 +28,10 @@ export default function OliviaCrm() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("auth_error")) setNotice("El enlace no es válido o ha caducado. Solicita uno nuevo.");
-    if (new URLSearchParams(window.location.search).get("tab") === "conversaciones") setTab("conversaciones");
+    const syncTab=()=>{const current=new URLSearchParams(window.location.search).get("tab");setTab(tabs.some(([id])=>id===current)?current!:"resumen");};
+    syncTab(); window.addEventListener("popstate",syncTab);
     load().catch(() => setNotice("No se pudo conectar con el CRM. Vuelve a intentarlo."));
+    return()=>window.removeEventListener("popstate",syncTab);
   }, []);
 
   const login = async (event: FormEvent) => {
@@ -94,14 +96,14 @@ export default function OliviaCrm() {
 
   return <main className="app-shell">
     <aside><div className="brand"><span>●</span><strong>Olivia</strong><small>CRM Sadiet</small></div>
-      {tabs.map(([id,label]) => <button key={id} className={tab === id ? "nav active" : "nav"} onClick={() => setTab(id)}>{label}</button>)}
+      {tabs.map(([id,label]) => <button key={id} className={tab === id ? "nav active" : "nav"} onClick={() => { const u=new URL(window.location.href);u.searchParams.set("tab",id);u.searchParams.delete("conversation");u.searchParams.delete("contact");window.history.pushState({},"",u);setTab(id);window.dispatchEvent(new PopStateEvent("popstate")); }}>{label}</button>)}
     </aside>
     <section className="content">
       <header><div><p className="eyebrow">CENTRO COMERCIAL</p><h1>{titles[tab]}</h1></div><div className="header-actions"><button className="secondary" onClick={() => load()}>Actualizar</button><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></div></header>
       {notice && <p className="notice">{notice}</p>}
       {tab === "resumen" && <Summary data={data} />}
       {tab === "catalogo" && <section className="catalog">{data.products.map((product) => <ProductCard key={product.id} product={product} onSave={saveNotes} />)}</section>}
-      {tab === "contactos" && <section className="record-list">{data.contacts.length ? data.contacts.map((contact) => <ContactCard key={contact.id + contact.updated_at} contact={contact} products={data.products} onSave={saveResource} />) : <Empty title="Aún no hay contactos" text="El primer flujo de Meta creará aquí los leads con su origen y consentimiento." />}</section>}
+      {tab === "contactos" && <Contacts products={data.products} onSave={saveResource} />}
       {tab === "conversaciones" && <Conversations products={data.products} onSave={saveResource} />}
       {tab === "documentacion" && <Documentation documents={data.documents} products={data.products} onSave={saveDocument} />}
       {tab === "atribucion" && <Attribution touchpoints={data.touchpoints} />}
