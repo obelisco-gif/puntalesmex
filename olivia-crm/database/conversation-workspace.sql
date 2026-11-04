@@ -44,12 +44,13 @@ begin
  if not found then raise exception 'Cursor no válido'; end if;
  end if;
  select coalesce(jsonb_agg(to_jsonb(r) order by r.created_at,r.id),'[]') into items from (
- select m.*, (select d.status from public.outbound_dispatches d where d.message_id=m.id order by d.created_at desc,d.id desc limit 1) as delivery_status
+ select m.*, (select d.payload->>'sender_role' from public.outbound_dispatches d where d.message_id=m.id order by d.created_at desc,d.id desc limit 1) as sender_role, (select d.status from public.outbound_dispatches d where d.message_id=m.id order by d.created_at desc,d.id desc limit 1) as delivery_status
  from public.messages m where m.conversation_id=p_id and (p_before is null or (m.created_at,m.id)<(cursor_time,p_before))
  order by m.created_at desc,m.id desc limit 50)r;
  oldest_id:=(items->0->>'id')::uuid; oldest_time:=(items->0->>'created_at')::timestamptz;
  select exists(select 1 from public.messages where conversation_id=p_id and (created_at,id)<(oldest_time,oldest_id)) into older;
  return jsonb_build_object('conversation',to_jsonb(v),'contact',public.olivia_contact_detail(v.contact_id),'messages',items,'has_older',older,
+ 'outbound_enabled',coalesce((select (value->>'whatsapp_outbound_enabled')::boolean from public.olivia_config where key='bf2026'),false),
  'message_count',(select count(*) from public.messages where conversation_id=p_id),
  'channel_consents',coalesce((select jsonb_agg(jsonb_build_object('channel',channel,'status',status)) from public.contact_channel_consents where contact_id=v.contact_id),'[]'));
 end;$$;
@@ -65,7 +66,7 @@ begin
  if target not in ('bot','human','pending_human','resolved') or coalesce(p_input->>'status',v.status) not in ('open','paused','closed') or coalesce(p_input->>'priority',v.priority) not in ('low','normal','high','urgent') then raise exception 'Estado no válido'; end if;
  if target is distinct from v.handoff_status then
  -- Never replay replies generated before a change of operator.
- update public.outbound_dispatches set status='cancelled',error_message='Cambio de control desde el CRM' where conversation_id=p_id and status='pending';
+ update public.outbound_dispatches set status='cancelled',error_message='Cambio de control desde el CRM' where conversation_id=p_id and status='pending' and payload->>'sender_role' is distinct from 'human';
  get diagnostics cancelled=row_count;
  select count(*) into processing from public.outbound_dispatches where conversation_id=p_id and status='processing';
  if target in ('human','pending_human') then

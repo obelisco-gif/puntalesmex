@@ -51,7 +51,11 @@ export async function rpc<T>(name: string, body: object): Promise<T> {
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
-    if (name === "olivia_save_conversation" && String(result.message).includes("conversación ha cambiado")) throw new Error("La conversación ha cambiado. Actualízala antes de guardar.");
+    if (["olivia_save_conversation","olivia_manual_reply"].includes(name) && String(result.message).includes("conversación ha cambiado")) throw new Error("La conversación ha cambiado. Actualízala antes de guardar.");
+    if (name === "olivia_manual_reply") {
+      const message=String(result.message||"");
+      if (["Esta conversación no tiene WhatsApp disponible","Este contacto ha solicitado la baja de WhatsApp","La ventana de respuesta de WhatsApp está cerrada. Es necesario que el contacto vuelva a escribir","Identificador de envío ya utilizado"].includes(message)) throw new Error(message);
+    }
     if (name === "olivia_save_contact" && String(result.message).includes("contacto ha cambiado")) throw new Error("El contacto ha cambiado. Actualiza la ficha antes de guardar.");
     throw new Error("No se pudo guardar. Revisa los datos, actualiza la ficha y vuelve a intentarlo.");
   }

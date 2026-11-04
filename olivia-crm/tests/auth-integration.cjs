@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0, manualWrites = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -28,6 +28,7 @@ async function main() {
     if (req.url.startsWith("/auth/v1/logout")) { active = false; res.statusCode = 204; return res.end(); }
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50,open_total:0}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099") ? null : {conversation:{id:body.p_id},messages:[],contact:{id:"fixture"},has_older:false}));
+    if (req.url.startsWith("/rest/v1/rpc/olivia_manual_reply")) { manualWrites++; assert.equal(body.p_actor,user.id,"actor must come from verified session"); return res.end(JSON.stringify({dispatch_id:"test-dispatch",status:"pending",outbound_enabled:false})); }
     if (req.url.startsWith("/rest/v1/rpc/olivia_save_conversation")) { conversationWrites++; return res.end(JSON.stringify({conversation:body.p_input,in_flight:0})); }
     if (req.url.startsWith("/rest/v1/rpc/save_olivia_document")) {
       documentWrites++;
@@ -85,6 +86,14 @@ async function main() {
     assert.equal((await request(convoPath,"PATCH",{...convo,handoff_status:"invalid"})).status,400);
     assert.equal((await request(convoPath,"PATCH",convo,{origin:"https://attacker.invalid"})).status,403);
     assert.equal(conversationWrites,1,"invalid or cross-origin control changes never reach the database");
+    const replyPath="/api/conversations/00000000-0000-4000-8000-000000000020/reply";
+    const reply={body:"Respuesta de prueba",request_id:"00000000-0000-4000-8000-000000000555",expected_updated_at:new Date().toISOString(),p_actor:"spoofed"};
+    assert.equal((await request(replyPath,"POST",reply)).status,200);
+    assert.equal((await request(replyPath,"POST",{...reply,body:"  "})).status,400);
+    assert.equal((await request(replyPath,"POST",{...reply,body:"x".repeat(2001)})).status,400);
+    assert.equal((await request(replyPath,"POST",{...reply,request_id:"invalid"})).status,400);
+    assert.equal((await request(replyPath,"POST",reply,{origin:"https://attacker.invalid"})).status,403);
+    assert.equal(manualWrites,1);
     const document = { title:"Guía conjunta",content:"Contenido de prueba",approval_status:"draft",routing_packages:["commercial","black_friday","tema_nuevo"],catalog_product_ids:["00000000-0000-4000-8000-000000000002","00000000-0000-4000-8000-000000000003"],source_url:"https://example.invalid/fuente" };
     const created = await request("/api/documents","POST",document);
     assert.equal(created.status,201);
@@ -128,6 +137,7 @@ async function main() {
     assert.equal(updates,1);
     assert.equal((await request("/api/session","DELETE")).status,200);
     assert.equal((await request("/api/dashboard")).status,401,"logout must revoke access");
+    assert.equal((await request(replyPath,"POST",reply)).status,401);
     assert.equal((await request(contactPath,"PATCH",contact)).status,401);
     assert.equal((await request(attrPath,"PATCH",{attribute_key:"city",value_jsonb:"Madrid"})).status,401);
     assert.equal((await request(entryPath,"PATCH",entry)).status,401);
