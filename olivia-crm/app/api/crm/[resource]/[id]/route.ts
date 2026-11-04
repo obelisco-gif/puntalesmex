@@ -37,6 +37,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
     );
 
     if (!Object.keys(body).length) return NextResponse.json({ error: "No hay cambios válidos" }, { status: 400 });
+    if (resource === "conversations") {
+      if (body.status && !["open","paused","closed"].includes(String(body.status))) return NextResponse.json({ error: "Estado no válido" }, { status: 400 });
+      if (body.priority && !["low","normal","high","urgent"].includes(String(body.priority))) return NextResponse.json({ error: "Prioridad no válida" }, { status: 400 });
+      if (body.handoff_status && !["bot","pending_human","human","resolved"].includes(String(body.handoff_status))) return NextResponse.json({ error: "Atención no válida" }, { status: 400 });
+      body.updated_at = new Date().toISOString();
+    }
     if (resource === "documents" && body.approval_status === "approved" && !body.reviewed_at) {
       body.reviewed_at = new Date().toISOString();
     }

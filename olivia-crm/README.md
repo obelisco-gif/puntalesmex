@@ -75,8 +75,6 @@ ajustes de los agentes en n8n/permanent-base.json. La prueba
 tests/permanent-base.sql confirma la lectura en ambas etapas, los cambios de
 contenido inmediatos y la exclusión de documentos archivados o internos.
 
-## Validación
-
 ## Ficha comercial y registro dentro del chat
 
 Contactos muestra ambos canales, nueve fases válidas, score automático con motivos
