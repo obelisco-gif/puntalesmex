@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const build=require('../n8n/email-profile-by-address.cjs');
+const j={job_id:'new-job',kind:'klaviyo_early_access',email:'new@example.invalid',contact_id:'same-crm-contact',phone:'+34999000671',first_name:'Prueba'};
+const result=build({job:j}).json;
+assert.equal(result.profile_body.data.attributes.email,j.email);
+assert.equal(result.profile_body.data.attributes.properties.sadiet_contact_id,j.contact_id);
+assert.equal('external_id' in result.profile_body.data.attributes,false);
+assert.equal('phone_number' in result.profile_body.data.attributes,false);
+assert.equal(build({job:null}),null);
+console.log('PASS: profile identity follows the requested email; CRM reference stays a property, with no external ID or phone merge into the old bounced profile.');
