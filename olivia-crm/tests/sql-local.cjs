@@ -8,11 +8,11 @@ async function main(){
   const original=fs.readFileSync('tests/fixtures-core.sql','utf8');
   // Core functions and jobs; the original ingress integration is outside these tests.
   await db.exec(original);
-  for(const file of ['database/document-relations.sql','database/commercial-contact.sql','database/conversation-actions.sql','database/commercial-context.sql','database/agent-attributes.sql','database/agent-attributes-context.sql','database/woo-orders.sql','database/woo-orders-context.sql','database/conversation-workspace.sql','database/manual-replies.sql','database/contact-directory.sql','database/handoffs.sql','database/handoff-outbound.sql']){
+  for(const file of ['database/document-relations.sql','database/commercial-contact.sql','database/conversation-actions.sql','database/commercial-context.sql','database/agent-attributes.sql','database/agent-attributes-context.sql','database/woo-orders.sql','database/woo-orders-context.sql','database/conversation-workspace.sql','database/manual-replies.sql','database/contact-directory.sql','database/handoffs.sql','database/handoff-outbound.sql','database/ai-disclosure.sql','database/ai-disclosure-outbound.sql','database/ai-disclosure-claim.sql']){
    try{await db.exec(fs.readFileSync(file,'utf8'));}catch(e){throw new Error(file+': '+e.message,{cause:e});}
   }
   await db.exec("insert into public.catalog_products(woocommerce_product_id,name,price,permalink) values(10,'Colágeno marino Peptan® - Aroma naranja - 500g',42.50,'https://example.invalid/colageno');");
-  for(const file of ['tests/commercial-contact.sql','tests/agent-attributes.sql','tests/woo-orders.sql','tests/conversation-workspace.sql','tests/manual-replies.sql','tests/contact-directory.sql','tests/handoffs.sql']){
+  for(const file of ['tests/commercial-contact.sql','tests/agent-attributes.sql','tests/woo-orders.sql','tests/conversation-workspace.sql','tests/manual-replies.sql','tests/contact-directory.sql','tests/handoffs.sql','tests/ai-disclosure.sql']){
    try{const result=await db.exec(fs.readFileSync(file,'utf8'));console.log(file+': '+result.flatMap(r=>r.rows??[]).map(r=>r.result).filter(Boolean).join(' '));}catch(e){throw new Error(file+': '+e.message,{cause:e});}
   }
   console.log('PASS: disposable local PostgreSQL; no remote database or external messages.');

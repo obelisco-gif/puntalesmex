@@ -1,0 +1,11 @@
+{
+  "workflowId": "v1OCEolcgZesKiVV",
+  "publishedVersion": "77901f46-8b1f-42c3-81d4-62014569c590",
+  "nodes": [
+    "¿Acaba de enviarse el aviso IA?",
+    "Tras aviso IA · Reclamar respuesta"
+  ],
+  "sequence": "Confirm provider receipt -> if ai_disclosure -> claim its original response -> existing send branch; ordinary response ends the branch",
+  "credential": "Postgres Sadiet",
+  "sendingFlagsUnchanged": true
+}

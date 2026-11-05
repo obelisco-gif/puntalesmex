@@ -12,7 +12,7 @@ begin
  if (select status from public.outbound_dispatches where conversation_id=v and payload->>'body'='AI vieja')<>'cancelled' then raise exception 'Must cancel stale AI reply'; end if;
  again:=public.olivia_manual_reply(v,'Respuesta del equipo',req,stamp,actor);
  if not (again->>'duplicate')::boolean or again->>'dispatch_id'<>r->>'dispatch_id' then raise exception 'Retry duplicated message'; end if;
- select count(*) into n from public.messages where conversation_id=v and direction='outbound';
+ select count(*) into n from public.messages where conversation_id=v and direction='outbound' and body='Respuesta del equipo';
  if n<>1 then raise exception 'History duplicated'; end if;
  select count(*) into n from public.olivia_claim_outbound_v2(1);
  if n<>0 then raise exception 'Master pause bypassed'; end if;
