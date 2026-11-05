@@ -1,0 +1,787 @@
+{
+  "id": "v1OCEolcgZesKiVV",
+  "name": "Olivia · 02 Envío WhatsApp",
+  "active": true,
+  "isArchived": false,
+  "versionId": "2fbf5b20-a256-45cb-9d27-dbac7e64c519",
+  "activeVersionId": "77901f46-8b1f-42c3-81d4-62014569c590",
+  "triggerCount": 1,
+  "createdAt": "2026-10-16T11:31:03.695Z",
+  "updatedAt": "2026-11-05T08:57:02.623Z",
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "connections": {
+    "Cada 2 minutos": {
+      "main": [
+        [
+          {
+            "node": "Preparar bienvenidas autorizadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar bienvenidas autorizadas": {
+      "main": [
+        [
+          {
+            "node": "Reclamar envíos seguros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamar envíos seguros": {
+      "main": [
+        [
+          {
+            "node": "Desempaquetar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desempaquetar envío": {
+      "main": [
+        [
+          {
+            "node": "¿Texto o plantilla?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Texto o plantilla?": {
+      "main": [
+        [
+          {
+            "node": "Enviar plantilla API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resultado WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Registrar envío confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar plantilla API": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar envío confirmado": {
+      "main": [
+        [
+          {
+            "node": "¿Acaba de enviarse el aviso IA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Acaba de enviarse el aviso IA?": {
+      "main": [
+        [
+          {
+            "node": "Tras aviso IA · Reclamar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tras aviso IA · Reclamar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Desempaquetar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "f804689b-ee56-4e1c-adeb-d3fbb3aa00af",
+      "name": "Cada 2 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -192,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_claim_outbound_v2(1) as dispatch;",
+        "options": {}
+      },
+      "id": "72388aeb-a330-4d6e-b23f-8f89aa8f2b9e",
+      "name": "Reclamar envíos seguros",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $json.phone }}",
+        "textBody": "={{ $json.body }}",
+        "additionalFields": {}
+      },
+      "id": "7bee23af-8326-480a-b6fe-227ef7768bb9",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        832,
+        -32
+      ],
+      "webhookId": "58122bc4-d9ea-4455-913c-f90115799220",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.complete_olivia_outbound($1::uuid,$2::text,$3::text) as dispatch_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.dispatch_id,$json.external_id,$json.error] }}"
+        }
+      },
+      "id": "d06ba39b-6aa8-412a-bc57-8e0b9998af96",
+      "name": "Registrar envío confirmado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1216,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_prepare_welcome() as welcome,public.olivia_prepare_handoff_notifications() as handoff;",
+        "options": {}
+      },
+      "id": "71322c7a-c7f2-4128-a4f4-3cc169fc95ce",
+      "name": "Preparar bienvenidas autorizadas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -64,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.delivery_type }}",
+              "rightValue": "template",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6ee0f596-0012-4e35-ba90-d4de6ff07cc2",
+      "name": "¿Texto o plantilla?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const pending=$('Desempaquetar envío').item.json;\nif(!pending.dispatch_id) throw new Error('Falta dispatch_id: no registrar un envío sin correlación');\nconst external_id=$json.messages?.[0]?.id??null;\nconst err=$json.error;\nconst error=external_id?null:String(err?.message??err??'Sin identificador de envío; revisar antes de reintentar').slice(0,1500);\nreturn {json:{dispatch_id:pending.dispatch_id,external_id,error}};"
+      },
+      "id": "e76a8dd2-1c81-4950-922e-73d51cb3c40f",
+      "name": "Preparar resultado WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Outbound Olivia · BF26 + handoffs\nEl flujo ya estaba activo antes de la ampliación. Interruptores de envío al cliente y de avisos internos desactivados.\nCliente: bf2026.whatsapp_outbound_enabled, permisos y ventana de respuesta.\nEquipo: kind=human_handoff_alert, configuración handoff_alerts con número confirmado y plantilla aprobada. Nunca utiliza el teléfono ni el historial del cliente.\nPreparar bienvenidas y avisos → reclamar salida → texto o plantilla → registrar resultado. Los componentes de la plantilla proceden de cada envío.\nPendiente: número del equipo y creación/aprobación de olivia_handoff_equipo. No se han copiado números de Dina ni activado envíos.\nLos resultados quedan en outbound_dispatches y en el historial del handoff. Sin reintentos ciegos.",
+        "height": 280,
+        "width": 1150,
+        "color": 4
+      },
+      "id": "7d3fe8fe-adc8-44cf-92be-9946c4b1dcf0",
+      "name": "Reglas de salida BF26",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return $json.dispatch ? {json:$json.dispatch} : []; "
+      },
+      "id": "0c61982d-5213-4264-beab-c52713d948b0",
+      "name": "Desempaquetar envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $json.phone_number_id + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {messaging_product:'whatsapp',to:$json.phone,type:'template',template:{name:$json.template_name,language:{code:$json.template_language},components:$json.template_components??[]}} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "9d9104ae-39f3-4202-b264-c37548389a54",
+      "name": "Enviar plantilla API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        -176
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Desempaquetar envío').item.json.kind ?? '' }}",
+              "rightValue": "ai_disclosure",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "014e6019-8274-4e2d-846f-2746244021a9",
+      "name": "¿Acaba de enviarse el aviso IA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1408,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_claim_after_ai_disclosure($1::uuid) as dispatch;",
+        "options": {
+          "queryReplacement": "={{ [ $('Desempaquetar envío').item.json.dispatch_id ] }}"
+        }
+      },
+      "id": "1fa8c5bd-d3c6-44c0-b854-1a129b02ee76",
+      "name": "Tras aviso IA · Reclamar respuesta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        -64
+      ]
+    }
+  ],
+  "nodeGroups": [],
+  "activeVersion": {
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 2
+              }
+            ]
+          }
+        },
+        "id": "f804689b-ee56-4e1c-adeb-d3fbb3aa00af",
+        "name": "Cada 2 minutos",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          -192,
+          -160
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select public.olivia_claim_outbound_v2(1) as dispatch;",
+          "options": {}
+        },
+        "id": "72388aeb-a330-4d6e-b23f-8f89aa8f2b9e",
+        "name": "Reclamar envíos seguros",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          144,
+          32
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "send",
+          "phoneNumberId": "={{ $json.phone_number_id }}",
+          "recipientPhoneNumber": "={{ $json.phone }}",
+          "textBody": "={{ $json.body }}",
+          "additionalFields": {}
+        },
+        "id": "7bee23af-8326-480a-b6fe-227ef7768bb9",
+        "name": "Enviar WhatsApp",
+        "type": "n8n-nodes-base.whatsApp",
+        "typeVersion": 1.1,
+        "position": [
+          896,
+          128
+        ],
+        "webhookId": "58122bc4-d9ea-4455-913c-f90115799220",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select public.complete_olivia_outbound($1::uuid,$2::text,$3::text) as dispatch_id;",
+          "options": {
+            "queryReplacement": "={{ [$json.dispatch_id,$json.external_id,$json.error] }}"
+          }
+        },
+        "id": "d06ba39b-6aa8-412a-bc57-8e0b9998af96",
+        "name": "Registrar envío confirmado",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1440,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select public.olivia_prepare_welcome() as welcome,public.olivia_prepare_handoff_notifications() as handoff;",
+          "options": {}
+        },
+        "id": "71322c7a-c7f2-4128-a4f4-3cc169fc95ce",
+        "name": "Preparar bienvenidas autorizadas",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -64,
+          32
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.delivery_type }}",
+                "rightValue": "template",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "6ee0f596-0012-4e35-ba90-d4de6ff07cc2",
+        "name": "¿Texto o plantilla?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          640,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const pending=$('Desempaquetar envío').item.json;\nif(!pending.dispatch_id) throw new Error('Falta dispatch_id: no registrar un envío sin correlación');\nconst external_id=$json.messages?.[0]?.id??null;\nconst err=$json.error;\nconst error=external_id?null:String(err?.message??err??'Sin identificador de envío; revisar antes de reintentar').slice(0,1500);\nreturn {json:{dispatch_id:pending.dispatch_id,external_id,error}};"
+        },
+        "id": "e76a8dd2-1c81-4950-922e-73d51cb3c40f",
+        "name": "Preparar resultado WhatsApp",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1168,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## Outbound Olivia · BF26 + handoffs\nEl flujo ya estaba activo antes de la ampliación. Interruptores de envío al cliente y de avisos internos desactivados.\nCliente: bf2026.whatsapp_outbound_enabled, permisos y ventana de respuesta.\nEquipo: kind=human_handoff_alert, configuración handoff_alerts con número confirmado y plantilla aprobada. Nunca utiliza el teléfono ni el historial del cliente.\nPreparar bienvenidas y avisos → reclamar salida → texto o plantilla → registrar resultado. Los componentes de la plantilla proceden de cada envío.\nPendiente: número del equipo y creación/aprobación de olivia_handoff_equipo. No se han copiado números de Dina ni activado envíos.\nLos resultados quedan en outbound_dispatches y en el historial del handoff. Sin reintentos ciegos.",
+          "height": 280,
+          "width": 1150,
+          "color": 4
+        },
+        "id": "7d3fe8fe-adc8-44cf-92be-9946c4b1dcf0",
+        "name": "Reglas de salida BF26",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          0,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "return $json.dispatch ? {json:$json.dispatch} : []; "
+        },
+        "id": "0c61982d-5213-4264-beab-c52713d948b0",
+        "name": "Desempaquetar envío",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          512,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://graph.facebook.com/v23.0/' + $json.phone_number_id + '/messages' }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "whatsAppApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ {messaging_product:'whatsapp',to:$json.phone,type:'template',template:{name:$json.template_name,language:{code:$json.template_language},components:$json.template_components??[]}} }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "id": "9d9104ae-39f3-4202-b264-c37548389a54",
+        "name": "Enviar plantilla API",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          912,
+          -128
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "014e6019-8274-4e2d-846f-2746244021a9",
+        "name": "¿Acaba de enviarse el aviso IA?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1350,
+          0
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $('Desempaquetar envío').item.json.kind ?? '' }}",
+                "rightValue": "ai_disclosure",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "1fa8c5bd-d3c6-44c0-b854-1a129b02ee76",
+        "name": "Tras aviso IA · Reclamar respuesta",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1550,
+          0
+        ],
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select public.olivia_claim_after_ai_disclosure($1::uuid) as dispatch;",
+          "options": {
+            "queryReplacement": "={{ [ $('Desempaquetar envío').item.json.dispatch_id ] }}"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Cada 2 minutos": {
+        "main": [
+          [
+            {
+              "node": "Preparar bienvenidas autorizadas",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar bienvenidas autorizadas": {
+        "main": [
+          [
+            {
+              "node": "Reclamar envíos seguros",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reclamar envíos seguros": {
+        "main": [
+          [
+            {
+              "node": "Desempaquetar envío",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Desempaquetar envío": {
+        "main": [
+          [
+            {
+              "node": "¿Texto o plantilla?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Texto o plantilla?": {
+        "main": [
+          [
+            {
+              "node": "Enviar plantilla API",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Enviar WhatsApp",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enviar WhatsApp": {
+        "main": [
+          [
+            {
+              "node": "Preparar resultado WhatsApp",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar resultado WhatsApp": {
+        "main": [
+          [
+            {
+              "node": "Registrar envío confirmado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enviar plantilla API": {
+        "main": [
+          [
+            {
+              "node": "Preparar resultado WhatsApp",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Registrar envío confirmado": {
+        "main": [
+          [
+            {
+              "node": "¿Acaba de enviarse el aviso IA?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Acaba de enviarse el aviso IA?": {
+        "main": [
+          [
+            {
+              "node": "Tras aviso IA · Reclamar respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tras aviso IA · Reclamar respuesta": {
+        "main": [
+          [
+            {
+              "node": "Desempaquetar envío",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": []
+  },
+  "tags": [],
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp"
+  },
+  "parentFolderId": null,
+  "description": "Salida BF26 con bloqueo maestro, permisos por canal, texto dentro de ventana y plantilla de bienvenida. Registra éxito/error. Inactivo hasta configurar plantilla aprobada.",
+  "scopes": [
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "canExecute": true
+}

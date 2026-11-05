@@ -1,0 +1,492 @@
+{
+  "workflowId": "v1OCEolcgZesKiVV",
+  "name": "Olivia · 02 Envío WhatsApp",
+  "versionId": "f4754607-1c52-485a-bd82-386fa1129e71",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "f804689b-ee56-4e1c-adeb-d3fbb3aa00af",
+      "name": "Cada 2 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -800,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_dispatcher_claim(nullif($1::text,'')::uuid) as dispatch,$2::int as processed_count where $2::int<20;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [ $json.result?.dispatch_id ?? $json.dispatch_id ?? '', $json.result?.processed_count ?? $json.processed_count ?? 0 ] }}"
+        }
+      },
+      "id": "72388aeb-a330-4d6e-b23f-8f89aa8f2b9e",
+      "name": "Reclamar envíos seguros",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -320,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $json.phone }}",
+        "textBody": "={{ $json.body }}",
+        "additionalFields": {}
+      },
+      "id": "7bee23af-8326-480a-b6fe-227ef7768bb9",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        224
+      ],
+      "webhookId": "58122bc4-d9ea-4455-913c-f90115799220",
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_dispatcher_finish($1::jsonb) as result;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "id": "d06ba39b-6aa8-412a-bc57-8e0b9998af96",
+      "name": "Registrar envío confirmado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1232,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_dispatcher_recover() as recovery,public.olivia_dispatcher_repair_disclosures() as disclosure_repair,public.olivia_prepare_welcome() as welcome,public.olivia_prepare_handoff_notifications() as handoff,$1::text as dispatch_id,0 as processed_count;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [ $json.dispatch_id ?? $json.result?.dispatch_id ?? '' ] }}"
+        }
+      },
+      "id": "71322c7a-c7f2-4128-a4f4-3cc169fc95ce",
+      "name": "Preparar bienvenidas autorizadas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -544,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function prepareResult(response,pending){\n const data=response.body??response;\n const external_id=data.messages?.[0]?.id??null;\n const err=data.error??response.error;\n const code=Number(err?.code);\n const status=Number(response.statusCode??err?.statusCode??err?.httpCode);\n // Only an explicit provider rejection for throttling is retried. Network timeouts are ambiguous.\n const retry_safe=!external_id&&!!data.error&&(status===429||[4,17,32,613,80007,130429].includes(code));\n const error=external_id?null:String(pending.validation_error??err?.message??err?.description??err??'Sin identificador confirmado del proveedor; revisar antes de reintentar').slice(0,1500);\n return {dispatch_id:pending.dispatch_id,processed_count:pending.processed_count,external_id,error,retry_safe};\n}\nreturn {json:prepareResult($json,$('Desempaquetar envío').item.json)};"
+      },
+      "id": "e76a8dd2-1c81-4950-922e-73d51cb3c40f",
+      "name": "Preparar resultado WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Dispatcher Olivia · cola única\nEntrada inmediata desde Olivia + recuperación cada 2 minutos.\nReclama el dispatch concreto y su aviso IA previo; reserva exclusiva; máximo 20 envíos por ejecución.\nSwitch: 0 imagen · 1 aviso equipo · 2 plantilla · 3 texto (IA, humano, seguimiento, enlaces) · 4 inválido.\nRespeta el contenido y parámetros propios de cada pending. Registra aceptación real o error. Solo reintenta rechazos explícitos por límite; los resultados inciertos requieren revisión.\nLa cola antigua de pruebas se cancela antes de habilitar respuestas nuevas. Avisos al equipo requieren destinatario y plantilla aprobados.\nDina no se modifica.",
+        "height": 260,
+        "width": 1100,
+        "color": 4
+      },
+      "id": "7d3fe8fe-adc8-44cf-92be-9946c4b1dcf0",
+      "name": "Reglas de salida BF26",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -656
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function prepareCommand(d,processed_count=0){\n const out={...d,processed_count:Number(processed_count)||0};\n const template=d.delivery_type==='template';\n const image=d.kind==='image';\n const text=['freeform','lead_magnet','checkout_link'].includes(d.delivery_type)&&!image;\n out.route=d.kind==='human_handoff_alert'&&template?1:template?2:image?0:text?3:4;\n let error='';\n if(!d.dispatch_id||!d.phone||!d.phone_number_id)error='Falta identificador o destinatario del envío';\n if(template&&(!d.template_name||!d.template_language||!Array.isArray(d.template_components)))error='Plantilla incompleta';\n if(image&&!/^https:\\/\\//i.test(d.image_url??''))error='Falta URL HTTPS de imagen';\n if(text&&(!String(d.body??'').trim()||String(d.body).length>4096))error='Texto vacío o demasiado largo';\n if(out.route===4)error='Tipología de salida no compatible';\n out.request={messaging_product:'whatsapp',to:d.phone,type:template?'template':image?'image':'text',...(template?{template:{name:d.template_name,language:{code:d.template_language},components:d.template_components}}:image?{image:{link:d.image_url,...(d.caption?{caption:d.caption}:{})}}:{text:{body:d.body,preview_url:false}})};\n if(error){out.route=4;out.validation_error=error;}\n return out;\n}\nreturn $input.all().flatMap((item,index)=>item.json.dispatch?[{json:prepareCommand(item.json.dispatch,item.json.dispatch.processed_count??item.json.processed_count??0),pairedItem:{item:index}}]:[]);"
+      },
+      "id": "0c61982d-5213-4264-beab-c52713d948b0",
+      "name": "Desempaquetar envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $json.phone_number_id + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "9d9104ae-39f3-4202-b264-c37548389a54",
+      "name": "Enviar plantilla API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        704,
+        0
+      ],
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "dispatch_id"
+            }
+          ]
+        }
+      },
+      "id": "c1cc0449-e07b-4939-91c7-134c92c5522a",
+      "name": "Recibir salida decidida por Olivia",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_dispatcher_start($1::jsonb)||jsonb_build_object('processed_count',$2::int) as dispatch where $1::jsonb is not null;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json.dispatch), $json.processed_count??0] }}"
+        }
+      },
+      "id": "3ccb6550-ca58-40df-bbd5-6fee09f4ae6c",
+      "name": "Autorizar un único intento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -96,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ $json.route }}"
+      },
+      "id": "1217af6a-87f2-4ffd-b3f2-8db8d237caec",
+      "name": "Clasificar tipología de salida",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        384,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $json.phone_number_id + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "5cc98285-0cb6-4eda-822e-9e9ced32fb57",
+      "name": "Enviar imagen WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        704,
+        -416
+      ],
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $json.phone_number_id + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "33cf6396-5d36-47e6-b18b-52b0d7f9f402",
+      "name": "Enviar aviso al equipo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        704,
+        -208
+      ],
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{error:{message:$json.validation_error??'Tipo de salida no compatible'}}};"
+      },
+      "id": "580e1932-155e-407e-b065-f3a47c94536b",
+      "name": "Rechazar salida incompleta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        432
+      ]
+    }
+  ],
+  "connections": {
+    "Cada 2 minutos": {
+      "main": [
+        [
+          {
+            "node": "Preparar bienvenidas autorizadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recibir salida decidida por Olivia": {
+      "main": [
+        [
+          {
+            "node": "Preparar bienvenidas autorizadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar bienvenidas autorizadas": {
+      "main": [
+        [
+          {
+            "node": "Reclamar envíos seguros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamar envíos seguros": {
+      "main": [
+        [
+          {
+            "node": "Autorizar un único intento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autorizar un único intento": {
+      "main": [
+        [
+          {
+            "node": "Desempaquetar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desempaquetar envío": {
+      "main": [
+        [
+          {
+            "node": "Clasificar tipología de salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar tipología de salida": {
+      "main": [
+        [
+          {
+            "node": "Enviar imagen WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar aviso al equipo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar plantilla API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechazar salida incompleta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar imagen WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar aviso al equipo": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar plantilla API": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rechazar salida incompleta": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resultado WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Registrar envío confirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar envío confirmado": {
+      "main": [
+        [
+          {
+            "node": "Reclamar envíos seguros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  }
+}
