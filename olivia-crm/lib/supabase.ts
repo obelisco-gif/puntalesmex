@@ -51,6 +51,11 @@ export async function rpc<T>(name: string, body: object): Promise<T> {
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
+    if (name === "olivia_delete_contact") {
+      const message=String(result.message||"");
+      if (["El contacto ha cambiado. Actualiza la ficha antes de eliminar.","Hay envíos o integraciones en curso. Espera a que terminen antes de eliminar."].includes(message)) throw new Error(message);
+      throw new Error("No se pudo eliminar el perfil. Actualiza la ficha y vuelve a intentarlo.");
+    }
     if (["olivia_save_conversation","olivia_manual_reply"].includes(name) && String(result.message).includes("conversación ha cambiado")) throw new Error("La conversación ha cambiado. Actualízala antes de guardar.");
     if (name === "olivia_save_handoff" && String(result.message).includes("derivación ha cambiado")) throw new Error("La derivación ha cambiado. Actualiza antes de guardar.");
     if (name === "olivia_manual_reply") {

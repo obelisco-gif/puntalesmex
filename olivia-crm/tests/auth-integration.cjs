@@ -7,7 +7,7 @@ async function main() {
   const email = "admin@example.invalid";
   const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email, email_confirmed_at: new Date().toISOString(), app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: new Date().toISOString() };
   const token = [Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now()/1000)+3600, iat: Math.floor(Date.now()/1000), aud: "authenticated", email, role: "authenticated" })).toString("base64url"), "test-signature"].join(".");
-  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0, manualWrites = 0, handoffWrites = 0;
+  let active = false, emails = 0, updates = 0, documentWrites = 0, savedDocument = null, contactWrites = 0, entryWrites = 0, attributeWrites = 0, conversationWrites = 0, manualWrites = 0, handoffWrites = 0, contactDeletes = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
@@ -26,6 +26,7 @@ async function main() {
       return res.end(JSON.stringify(user));
     }
     if (req.url.startsWith("/auth/v1/logout")) { active = false; res.statusCode = 204; return res.end(); }
+    if (req.url.startsWith("/rest/v1/rpc/olivia_delete_contact")) { contactDeletes++; assert.equal(body.p_actor,user.id,"delete actor from verified session"); return res.end(JSON.stringify({deleted:true})); }
     if (req.url.startsWith("/rest/v1/rpc/olivia_contact_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_contact_detail")) return res.end(JSON.stringify(body.p_id.endsWith("099")?null:{id:body.p_id}));
     if (req.url.startsWith("/rest/v1/rpc/olivia_conversation_directory")) return res.end(JSON.stringify({rows:[],total:0,page:body.p_page,page_size:50,open_total:0}));
@@ -65,6 +66,7 @@ async function main() {
     assert.equal((await request("/api/dashboard")).status,401);
     assert.equal((await request("/api/conversations")).status,401);
     assert.equal((await request("/api/conversations/00000000-0000-4000-8000-000000000020")).status,401);
+    assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000020","DELETE",{confirmation:"ELIMINAR",expected_updated_at:new Date().toISOString()})).status,401);
     jar.set("olivia_crm_session","old-shared-password-cookie");
     assert.equal((await request("/api/dashboard")).status,401,"legacy cookie must not grant access");
     assert.equal((await request("/api/session","POST",{email:"outsider@example.invalid",password:"anything"})).status,401);
@@ -83,6 +85,15 @@ async function main() {
     assert.equal((await request("/api/contacts/invalid")).status,400);
     assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000020")).status,200);
     assert.equal((await request("/api/contacts/00000000-0000-4000-8000-000000000099")).status,404);
+    const deletePath='/api/contacts/00000000-0000-4000-8000-000000000020';
+    const deletion={confirmation:'ELIMINAR',expected_updated_at:new Date().toISOString(),p_actor:'spoofed'};
+    assert.equal((await request(deletePath,'DELETE',{expected_updated_at:deletion.expected_updated_at})).status,400);
+    assert.equal((await request(deletePath,'DELETE',{...deletion,expected_updated_at:'bad'})).status,400);
+    assert.equal((await request('/api/contacts/invalid','DELETE',deletion)).status,400);
+    assert.equal((await request(deletePath,'DELETE',deletion,{origin:'https://attacker.invalid'})).status,403);
+    assert.equal(contactDeletes,0,'invalid or cross-origin deletion must not reach DB');
+    assert.equal((await request(deletePath,'DELETE',deletion)).status,200);
+    assert.equal(contactDeletes,1);
     const convoPath="/api/crm/conversations/00000000-0000-4000-8000-000000000020";
     const convo={handoff_status:"human",expected_updated_at:new Date().toISOString()};
     assert.equal((await request("/api/conversations?page=2&q=demo")).status,200);

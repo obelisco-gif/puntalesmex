@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ContactCard, type Contact, stages } from "./contact-card";
 import { ConversationDetail } from "./conversations";
+import { DeleteContact } from "./delete-contact";
 
 type Row={id:string;first_name:string|null;email:string|null;phone:string|null;stage:string;manual_tags:string[];source:string|null;updated_at:string;score:number;conversation_id:string|null};
 type Directory={rows:Row[];total:number;page:number;page_size:number};
@@ -44,5 +45,5 @@ function ContactWithoutConversation({id,products,onSave,onBack}:Props&{id:string
  const [contact,setContact]=useState<Contact|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
  useEffect(()=>{const abort=new AbortController();setLoading(true);setError("");fetch("/api/contacts/"+id,{signal:abort.signal}).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);return b;}).then(setContact).catch(e=>{if(!abort.signal.aborted)setError(e.message);}).finally(()=>{if(!abort.signal.aborted)setLoading(false);});return()=>abort.abort();},[id,revision]);
  const save:Props["onSave"]=async(resource,target,body)=>{const ok=await onSave(resource,target,body);if(ok)setRevision(v=>v+1);return ok;};
- return <section className="conversation-workspace"><div className="conversation-back"><button className="secondary" onClick={onBack}>← Volver al listado</button><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}>Actualizar ficha</button></div>{error&&<p role="alert">{error}</p>}{loading&&<p role="status">Cargando ficha…</p>}{contact&&<><section className="conversation-control"><h3>Sin conversaciones todavía</h3><p>Este contacto tiene su ficha disponible. El historial aparecerá cuando tenga una conversación registrada.</p></section><ContactCard key={contact.id+contact.updated_at} contact={contact} products={products} onSave={save}/></>}</section>;
+ return <section className="conversation-workspace"><div className="conversation-back"><button className="secondary" onClick={onBack}>← Volver al listado</button><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}>Actualizar ficha</button></div>{error&&<p role="alert">{error}</p>}{loading&&<p role="status">Cargando ficha…</p>}{contact&&<><section className="conversation-control"><h3>Sin conversaciones todavía</h3><p>Este contacto tiene su ficha disponible. El historial aparecerá cuando tenga una conversación registrada.</p></section><DeleteContact contact={contact} onDeleted={onBack} disabled={loading}/><ContactCard key={contact.id+contact.updated_at} contact={contact} products={products} onSave={save}/></>}</section>;
 }
