@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict');
+const validate=require('../n8n/klaviyo-suppression-validator.cjs');
+const job={kind:'klaviyo_early_access',contact_id:'test-contact',email:'test@example.invalid',consent_at:'2026-11-05T11:53:00Z',list_id:'test-list'};
+const $=()=>({item:{json:job}});
+const response=marketing=>({statusCode:200,body:{data:{id:'test-profile',attributes:{subscriptions:{email:{marketing}}}}}});
+let r=validate($,response({consent:'SUBSCRIBED',suppression:[{reason:'HARD_BOUNCE'}]})).json;
+assert.equal(r.blocked,true);assert.equal(r.block_reason,'hard_bounce');assert.match(r.error,/HARD_BOUNCE/);
+r=validate($,response({consent:'SUBSCRIBED',suppression:[{reason:'INVALID_EMAIL'}]})).json;assert.equal(r.blocked,true);assert.equal(r.block_reason,'invalid_email');
+r=validate($,response({consent:'UNSUBSCRIBED',consent_timestamp:'2026-11-05T12:00:00Z',suppression:[]})).json;assert.equal(r.block_reason,'remote_unsubscribed');
+r=validate($,response({consent:'NEVER_SUBSCRIBED',suppression:[]})).json;assert.equal(r.blocked,false);
+r=validate($,{statusCode:403}).json;assert.equal(r.blocked,true);assert.equal(r.block_reason,'profile_api_error');
+console.log('PASS: hard bounce, invalid email, later unsubscribe and API error remain blocked; eligible new consent proceeds.');
