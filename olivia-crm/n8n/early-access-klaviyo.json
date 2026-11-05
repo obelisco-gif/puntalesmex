@@ -1,0 +1,617 @@
+{
+  "workflowId": "A82j0piAkLvHbISZ",
+  "name": "Olivia · 04 Tag Early Access → Klaviyo",
+  "versionId": "e2a46aa8-25c9-4a00-a1e3-8d4e361ce7ec",
+  "nodes": [
+    {
+      "id": "8d5bd5f2-2735-49c3-86c2-07b10310f5d8",
+      "name": "Cada minuto · Klaviyo",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        224
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "51122294-5184-4aa6-8b11-81ae746956e4",
+      "name": "Reclamar trabajo Klaviyo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        224
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "select public.olivia_claim_integration('klaviyo_early_access') as job union all select public.olivia_claim_integration('klaviyo_unsubscribe') as job;"
+      }
+    },
+    {
+      "id": "efb9e2e1-59c9-4e86-85ed-3624ccb59988",
+      "name": "Desempaquetar trabajo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        224
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$json.job;\nif(!j?.job_id)return [];\nconst attributes={email:j.email,external_id:j.contact_id};\nif(j.first_name)attributes.first_name=j.first_name;\nif(/^\\+[1-9][0-9]{6,14}$/.test(j.phone??'')) attributes.phone_number=j.phone;\nif(j.kind==='klaviyo_early_access') attributes.properties={bf2026_early_access:true,bf2026_source:'sadiet_crm'};\nreturn {json:{...j,profile_body:{data:{type:'profile',attributes}}}};"
+      }
+    },
+    {
+      "id": "49c0c864-6f78-439d-9d1d-eb0a51d4f247",
+      "name": "Crear o actualizar perfil Klaviyo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        224
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://a.klaviyo.com/api/profile-import?additional-fields%5Bprofile%5D=subscriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/vnd.api+json"
+            },
+            {
+              "name": "revision",
+              "value": "2026-10-15"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.profile_body }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": false
+    },
+    {
+      "id": "57b069f0-c503-4e4a-b316-18b6e590223c",
+      "name": "Validar permiso y estado remoto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        224
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$('Desempaquetar trabajo').item.json;\nconst ok=[200,201].includes($json.statusCode);\nconst profile=$json.body?.data;\nconst marketing=profile?.attributes?.subscriptions?.email?.marketing??{};\nconst remoteAt=Date.parse(marketing.consent_timestamp??marketing.last_updated??'');\nconst localAt=Date.parse(j.consent_at??'');\nconst revoked=marketing.consent==='UNSUBSCRIBED'&&(!Number.isFinite(remoteAt)||remoteAt>=localAt);\nconst suppressed=(Array.isArray(marketing.suppression)?marketing.suppression:[]).some(x=>['SPAM_REPORT','HARD_BOUNCE','USER_SUPPRESSED'].includes(String(x.reason??x.suppression_reason??'').toUpperCase()));\nconst blocked=!ok||(j.kind==='klaviyo_early_access'&&(revoked||suppressed));\nreturn {json:{...j,profile_id:profile?.id??'',blocked,is_unsubscribe:j.kind==='klaviyo_unsubscribe',already_requested:j.job_payload?.request_accepted===true,error:!ok?'No se pudo actualizar el perfil':revoked?'Baja remota posterior o de fecha desconocida':suppressed?'Perfil suprimido: revisión manual':'',subscribe_body:{data:{type:'profile-subscription-bulk-create-job',attributes:{custom_source:'Sadiet BF2026 · formulario/CRM',profiles:{data:[{type:'profile',attributes:{email:j.email,subscriptions:{email:{marketing:{consent:'SUBSCRIBED'}}}}}]}},relationships:{list:{data:{type:'list',id:j.list_id}}}}},unsubscribe_body:{data:{type:'profile-subscription-bulk-delete-job',attributes:{profiles:{data:[{type:'profile',attributes:{email:j.email,subscriptions:{email:{marketing:{consent:'UNSUBSCRIBED'}}}}}]}}}}}};"
+      }
+    },
+    {
+      "id": "9b6ebbba-fdd9-4d4f-88f2-e47cd27cc9cb",
+      "name": "¿Bloqueado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        224
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.blocked }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "8706461c-978b-4dcc-9ef7-a53b06048ddb",
+      "name": "Preparar bloqueo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$json;return {json:{...j,success:false,status:'blocked'}};"
+      }
+    },
+    {
+      "id": "ccc2bd71-1ab0-490e-8f96-88b8ffd251f0",
+      "name": "Codificar resultado de integración",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{payload_b64:Buffer.from(JSON.stringify($json),'utf8').toString('base64')}};"
+      }
+    },
+    {
+      "id": "deb9c638-bc60-4755-b3d2-7d17da23612d",
+      "name": "Guardar resultado Klaviyo en CRM",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2912,
+        192
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "select public.olivia_complete_integration_b64($1) as result;",
+        "options": {
+          "queryReplacement": "={{ $json.payload_b64 }}"
+        }
+      }
+    },
+    {
+      "id": "83bfcea5-8548-4d38-bd6e-4349cc5ae0b7",
+      "name": "¿Baja de email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_unsubscribe }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "3e6b9672-a58f-4036-9d4e-9b973614efdc",
+      "name": "Solicitar baja de email Klaviyo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2240,
+        192
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://a.klaviyo.com/api/profile-subscription-bulk-delete-jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/vnd.api+json"
+            },
+            {
+              "name": "revision",
+              "value": "2026-10-15"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.unsubscribe_body }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": false
+    },
+    {
+      "id": "4d3438a0-698e-4254-8ac7-258e50d7d029",
+      "name": "Preparar resultado de baja",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$('Validar permiso y estado remoto').item.json;\nreturn {json:{...j,success:$json.statusCode===202,status:$json.statusCode===202?'completed':'failed',error:$json.statusCode===202?'':JSON.stringify($json.body?.errors??$json.error??'Error de baja').slice(0,1200),result:{unsubscribe_request_accepted:$json.statusCode===202}}};"
+      }
+    },
+    {
+      "id": "110bbc2c-38b3-4628-95a8-cc8465b8b618",
+      "name": "¿Solicitud ya aceptada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        416
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.already_requested }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "7a80e0d8-9101-4850-ae57-da7af5473e22",
+      "name": "Verificar pertenencia a la lista",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2240,
+        416
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://a.klaviyo.com/api/profiles/'+$json.profile_id+'/lists' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/vnd.api+json"
+            },
+            {
+              "name": "revision",
+              "value": "2026-10-15"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": false
+    },
+    {
+      "id": "fdb301ca-338a-4422-9691-676130e5092b",
+      "name": "Confirmar alta o esperar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        416
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$('Validar permiso y estado remoto').item.json;\nlet submitted=j.already_requested;\nlet submitError='';\ntry{const a=$('Registrar aceptación de solicitud').item.json;submitted=submitted||a.request_accepted;submitError=a.error??'';}catch{}\nconst success=$json.statusCode===200&&($json.body?.data??[]).some(l=>l.id===j.list_id);\nconst status=success?'completed':submitError?'failed':submitted?'pending':'failed';\nreturn {json:{...j,success,status,error:success?'':submitError||'Confirmación de pertenencia pendiente',result:{profile_id:j.profile_id,request_accepted:submitted,membership_confirmed:success}}};"
+      }
+    },
+    {
+      "id": "f20cb880-d512-42f0-93cd-19ceefec033b",
+      "name": "Solicitar alta en Early access 26",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1792,
+        480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/vnd.api+json"
+            },
+            {
+              "name": "revision",
+              "value": "2026-10-15"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.subscribe_body }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": false
+    },
+    {
+      "id": "9ac7e9a5-d773-4bdf-933f-a006f2a18e52",
+      "name": "Registrar aceptación de solicitud",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j=$('Validar permiso y estado remoto').item.json;\nreturn {json:{...j,request_accepted:$json.statusCode===202,error:$json.statusCode===202?'':JSON.stringify($json.body?.errors??$json.error??'Error de suscripción').slice(0,1200)}};"
+      }
+    }
+  ],
+  "connections": {
+    "Cada minuto · Klaviyo": {
+      "main": [
+        [
+          {
+            "node": "Reclamar trabajo Klaviyo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamar trabajo Klaviyo": {
+      "main": [
+        [
+          {
+            "node": "Desempaquetar trabajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desempaquetar trabajo": {
+      "main": [
+        [
+          {
+            "node": "Crear o actualizar perfil Klaviyo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear o actualizar perfil Klaviyo": {
+      "main": [
+        [
+          {
+            "node": "Validar permiso y estado remoto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar permiso y estado remoto": {
+      "main": [
+        [
+          {
+            "node": "¿Bloqueado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Bloqueado?": {
+      "main": [
+        [
+          {
+            "node": "Preparar bloqueo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Baja de email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar bloqueo": {
+      "main": [
+        [
+          {
+            "node": "Codificar resultado de integración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Codificar resultado de integración": {
+      "main": [
+        [
+          {
+            "node": "Guardar resultado Klaviyo en CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Baja de email?": {
+      "main": [
+        [
+          {
+            "node": "Solicitar baja de email Klaviyo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Solicitud ya aceptada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solicitar baja de email Klaviyo": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado de baja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resultado de baja": {
+      "main": [
+        [
+          {
+            "node": "Codificar resultado de integración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Solicitud ya aceptada?": {
+      "main": [
+        [
+          {
+            "node": "Verificar pertenencia a la lista",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Solicitar alta en Early access 26",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar pertenencia a la lista": {
+      "main": [
+        [
+          {
+            "node": "Confirmar alta o esperar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar alta o esperar": {
+      "main": [
+        [
+          {
+            "node": "Codificar resultado de integración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solicitar alta en Early access 26": {
+      "main": [
+        [
+          {
+            "node": "Registrar aceptación de solicitud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar aceptación de solicitud": {
+      "main": [
+        [
+          {
+            "node": "Verificar pertenencia a la lista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
