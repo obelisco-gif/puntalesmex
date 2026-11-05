@@ -1,0 +1,312 @@
+{
+  "workflowId": "6nkI4fSPQUKTi7jD",
+  "name": "Olivia · Sincronizar catálogo de WooCommerce",
+  "versionId": "1060f124-7c6c-45ac-946e-10b49580cbb8",
+  "activeVersionId": "1060f124-7c6c-45ac-946e-10b49580cbb8",
+  "nodes": [
+    {
+      "id": "1c0615d6-67ea-43c9-b980-693c6a0a7e75",
+      "name": "Iniciar sincronización manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "9e744036-a285-4fa4-a3b1-e0408044dd7d",
+      "name": "Leer productos publicados de WooCommerce",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "resource": "product",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "status": "publish"
+        }
+      }
+    },
+    {
+      "id": "7bc7d274-3cc8-4f23-8e06-952a1bcdadef",
+      "name": "Preparar catálogo para Olivia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const source = $json;\nconst stripHtml = (value = '') => String(value)\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nreturn {\n  json: {\n    woocommerce_product_id: source.id,\n    expected_variation_ids: Array.isArray(source.variations) ? source.variations : [],\n    product_type: source.type || 'simple',\n    name: source.name || 'Producto sin nombre',\n    slug: source.slug || '',\n    status: source.status || 'publish',\n    permalink: source.permalink || '',\n    sku: source.sku || '',\n    price: source.price || '',\n    regular_price: source.regular_price || '',\n    sale_price: source.sale_price || '',\n    on_sale: Boolean(source.on_sale),\n    purchasable: Boolean(source.purchasable),\n    stock_status: source.stock_status || 'unknown',\n    stock_quantity: source.stock_quantity ?? '',\n    image_url: source.images?.[0]?.src || '',\n    categories: source.categories || [],\n    tags: source.tags || [],\n    attributes: source.attributes || [],\n    short_description: stripHtml(source.short_description).slice(0, 1500),\n    source_modified_at: source.date_modified_gmt || source.date_modified || ''\n  }\n};"
+      }
+    },
+    {
+      "id": "36995d4f-de39-458d-853d-365566d46002",
+      "name": "Guardar o actualizar catálogo en Sadiet",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from public.olivia_sync_catalog_parent($1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}",
+          "queryBatching": "independently"
+        }
+      }
+    },
+    {
+      "id": "10fcdef0-edce-4c1a-acd9-15228e2224e8",
+      "name": "Actualizar catálogo cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ed2bd980-52de-48b5-ad8b-f8aa68aaee6c",
+      "name": "¿Producto con variantes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        850,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.product_type }}",
+              "rightValue": "variable",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "750d5ca9-0734-4072-b26f-69e5cdc530e4",
+      "name": "Leer todas las variantes WooCommerce",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1050,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://comprarcafeverde.es/wp-json/wc/v3/products/' + Number($json.woocommerce_product_id) + '/variations' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wooCommerceApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "status",
+              "value": "any"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ Array.isArray($response.body) && $response.body.length < 100 }}",
+              "limitPagesFetched": false,
+              "requestInterval": 200
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "a93f685b-e775-4559-96ec-4d57a3b714cf",
+      "name": "Validar y agrupar variantes por producto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pure function shared by the n8n Code node and local pagination tests.\r\nfunction normalizeVariationSnapshots(items, seedAt) {\r\n const grouped=new Map();\r\n const money=value=>{if(value==null||value==='')return null;const n=Number(value);if(!Number.isFinite(n)||n<0)throw new Error('Precio no válido');return n;};\r\n const date=value=>{if(!value)return null;const s=/Z$|[+-]\\d{2}:\\d{2}$/.test(value)?value:value+'Z';if(!Number.isFinite(Date.parse(s)))throw new Error('Fecha no válida');return new Date(s).toISOString();};\r\n items.forEach((item,index)=>{\r\n  const seed=seedAt(index);const id=Number(seed.woocommerce_product_id);\r\n  if(!Number.isSafeInteger(id)||id<1||!seed.catalog_product_id||!Array.isArray(seed.expected_ids))throw new Error('Falta correlación con el producto padre');\r\n  if(!grouped.has(id))grouped.set(id,{catalog_product_id:seed.catalog_product_id,woocommerce_product_id:id,requested_at:seed.requested_at,expected_ids:seed.expected_ids,complete:true,variations:[],pages:0});\r\n  const snapshot=grouped.get(id),body=item.json.body??item.json;\r\n  if(!Array.isArray(body))throw new Error('Respuesta de variantes no válida');snapshot.pages++;\r\n  for(const v of body){\r\n   if(!Number.isSafeInteger(Number(v.id))||Number(v.id)<1)throw new Error('ID de variante no válido');\r\n   const attributes=(v.attributes||[]).map(a=>({id:a.id,name:String(a.name||''),option:String(a.option??'')}));\r\n   const quantity=v.stock_quantity==null?null:Number(v.stock_quantity);if(quantity!==null&&!Number.isSafeInteger(quantity))throw new Error('Cantidad de stock no válida');\r\n   const label=attributes.map(a=>a.option||'Cualquier '+a.name).join(' · ');\r\n   snapshot.variations.push({woocommerce_variation_id:Number(v.id),sku:String(v.sku||''),name:label||'Variante '+v.id,status:v.status||'publish',price:money(v.price),regular_price:money(v.regular_price),sale_price:money(v.sale_price),on_sale:v.on_sale===true,purchasable:v.purchasable===true,stock_status:['instock','outofstock','onbackorder'].includes(v.stock_status)?v.stock_status:'unknown',stock_quantity:quantity,manage_stock:typeof v.manage_stock==='boolean'?v.manage_stock:null,attributes,image_url:v.image?.src||null,permalink:v.permalink||null,source_modified_at:date(v.date_modified_gmt)});\r\n  }\r\n });\r\n return [...grouped.values()].map(snapshot=>{\r\n  const actual=snapshot.variations.map(v=>v.woocommerce_variation_id).sort((a,b)=>a-b),expected=snapshot.expected_ids.map(Number).sort((a,b)=>a-b);\r\n  if(new Set(actual).size!==actual.length||JSON.stringify(actual)!==JSON.stringify(expected))throw new Error('Instantánea incompleta o producto modificado durante la consulta: '+snapshot.woocommerce_product_id);\r\n  return {json:snapshot};\r\n });\r\n}\r\nreturn normalizeVariationSnapshots($input.all(),index=>$('Guardar o actualizar catálogo en Sadiet').itemMatching(index).json);\r\n\r\n"
+      }
+    },
+    {
+      "id": "4908be0c-2a23-4e0d-ba1f-90431d60247b",
+      "name": "Guardar instantánea completa de variantes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1450,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.sync_catalog_variations($1::jsonb) as result;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}",
+          "queryBatching": "independently"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Iniciar sincronización manual": {
+      "main": [
+        [
+          {
+            "node": "Leer productos publicados de WooCommerce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer productos publicados de WooCommerce": {
+      "main": [
+        [
+          {
+            "node": "Preparar catálogo para Olivia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar catálogo para Olivia": {
+      "main": [
+        [
+          {
+            "node": "Guardar o actualizar catálogo en Sadiet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar catálogo cada hora": {
+      "main": [
+        [
+          {
+            "node": "Leer productos publicados de WooCommerce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar o actualizar catálogo en Sadiet": {
+      "main": [
+        [
+          {
+            "node": "¿Producto con variantes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Producto con variantes?": {
+      "main": [
+        [
+          {
+            "node": "Leer todas las variantes WooCommerce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer todas las variantes WooCommerce": {
+      "main": [
+        [
+          {
+            "node": "Validar y agrupar variantes por producto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y agrupar variantes por producto": {
+      "main": [
+        [
+          {
+            "node": "Guardar instantánea completa de variantes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timezone": "Europe/Madrid"
+  }
+}

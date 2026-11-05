@@ -4,6 +4,7 @@ import "./auth.css";
 import "./documentation.css";
 import "./contacts.css";
 import "./handoffs.css";
+import "./variants.css";
 import "./conversations.css";
 
 export const metadata: Metadata = {

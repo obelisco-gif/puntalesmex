@@ -5,8 +5,9 @@ import { Documentation, type DocumentRecord } from "./documentation";
 import { Contacts } from "./contacts";
 import { Handoffs } from "./handoffs";
 import { Conversations } from "./conversations";
+import { ProductVariations, type ProductVariation } from "./product-variations";
 
-type Product = { id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
+type Product = { product_type?:string; variations?:ProductVariation[]; variations_synced_at?:string|null; variations_sync_status?:string; id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
 type Document = DocumentRecord;
 type Touchpoint = { id: string; channel: string; source: string | null; campaign: string | null; medium: string | null; content: string | null; occurred_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
 type Dashboard = { products: Product[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
@@ -120,7 +121,7 @@ function Summary({ data }: { data: Dashboard }) {
 function ProductCard({ product, onSave }: { product: Product; onSave: (product: Product, notes: string, tags: string) => Promise<void> }) {
   const [notes, setNotes] = useState(product.internal_notes || "");
   const [tags, setTags] = useState(product.manual_tags?.join(", ") || "");
-  return <article className="product-card"><div className="product-title">{product.image_url ? <img src={product.image_url} alt="" /> : <div className="image-placeholder" />}<div><h2>{product.name}</h2><a href={product.permalink} target="_blank">Ver en la tienda</a></div></div><div className="product-meta"><span>{product.price ? String(product.price) + " €" : "Sin precio"}</span><span className={product.stock_status === "instock" ? "stock yes" : "stock"}>{product.stock_status === "instock" ? "En stock" : "Sin stock"}</span></div><label>Anotaciones internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ej.: priorizar en campañas de otoño; revisar texto comercial…" /></label><label>Etiquetas manuales<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: top-venta, campaña-recetas" /></label><button onClick={() => onSave(product, notes, tags)}>Guardar anotaciones</button></article>;
+  return <article className="product-card"><div className="product-title">{product.image_url ? <img src={product.image_url} alt="" /> : <div className="image-placeholder" />}<div><h2>{product.name}</h2><a href={product.permalink} target="_blank">Ver en la tienda</a></div></div><div className="product-meta"><span>{product.price !== null && product.price !== "" ? (product.product_type === "variable" ? "Desde " : "") + String(product.price) + " €" : "Sin precio"}</span><span className={product.stock_status === "instock" ? "stock yes" : "stock"}>{product.stock_status === "instock" ? "En stock" : "Sin stock"}</span></div>{product.product_type === "variable" && <ProductVariations variations={product.variations || []} syncedAt={product.variations_synced_at} syncStatus={product.variations_sync_status} />}<label>Anotaciones internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ej.: priorizar en campañas de otoño; revisar texto comercial…" /></label><label>Etiquetas manuales<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: top-venta, campaña-recetas" /></label><button onClick={() => onSave(product, notes, tags)}>Guardar anotaciones</button></article>;
 }
 
 function Attribution({ touchpoints }: { touchpoints: Touchpoint[] }) {

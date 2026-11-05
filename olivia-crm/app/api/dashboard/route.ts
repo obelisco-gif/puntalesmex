@@ -7,7 +7,7 @@ export async function GET() {
 
   try {
     const [products, contacts, directory, documents, touchpoints] = await Promise.all([
-      select<any>("catalog_products", "select=id,name,price,stock_status,image_url,internal_notes,manual_tags,permalink&order=name.asc&limit=100"),
+      rpc<any[]>("olivia_catalog_products", {}),
       rpc<{total:number}>("olivia_contact_directory", {p_page:1,p_search:"",p_stage:"",p_tag:""}),
       rpc<{open_total:number}>("olivia_conversation_directory", {p_page:1,p_search:"",p_status:"",p_control:""}),
       select<any>("product_documents", "select=id,catalog_product_id,document_type,title,content,source_url,approval_status,reviewed_at,updated_at,routing_packages,product_document_products(catalog_product_id)&order=updated_at.desc&limit=100"),
