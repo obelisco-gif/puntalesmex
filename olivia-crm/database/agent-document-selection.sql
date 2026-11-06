@@ -6,6 +6,7 @@ begin
  ctx:=public.olivia_context_v2_b64(p_payload_b64);
  if ctx='{}'::jsonb then return ctx;end if;
  return ctx||jsonb_build_object(
+ 'products',coalesce((select jsonb_agg(x) from jsonb_array_elements(coalesce(ctx->'products','[]')) x join public.catalog_products cp on cp.id::text=x->>'id' where coalesce(cp.product_type,'') !~* 'subscription' and coalesce(cp.name,'') !~* 'club[ -]+sadiet' and coalesce(to_jsonb(cp)->>'slug','') !~* 'club-sadiet' and coalesce(to_jsonb(cp)->>'categories','') !~* 'club-sadiet'),'[]'::jsonb),
  'base_documents',coalesce((select jsonb_agg(jsonb_build_object('id',d.id,'title',d.title,'content',d.content,'updated_at',d.updated_at) order by d.id)
  from public.product_documents d where d.approval_status='approved' and d.routing_packages&&array['always'] and not d.routing_packages&&array['internal_ops','orchestrator']),'[]'::jsonb),
  'orchestration_documents',coalesce((select jsonb_agg(jsonb_build_object('id',d.id,'title',d.title,'content',d.content,'updated_at',d.updated_at) order by d.id)
@@ -24,7 +25,7 @@ declare p jsonb:=convert_from(decode(p_payload_b64,'base64'),'utf8')::jsonb;ctx 
 begin
  ctx:=public.olivia_context_v2_b64(p_payload_b64);
  if ctx='{}'::jsonb then raise exception 'Contact/conversation mismatch';end if;
- products:=array(select cp.id from public.catalog_products cp where cp.status='publish'
+ products:=array(select cp.id from public.catalog_products cp where cp.status='publish' and coalesce(cp.product_type,'') !~* 'subscription' and coalesce(cp.name,'') !~* 'club[ -]+sadiet' and coalesce(to_jsonb(cp)->>'slug','') !~* 'club-sadiet' and coalesce(to_jsonb(cp)->>'categories','') !~* 'club-sadiet'
  and cp.id::text in(select jsonb_array_elements_text(coalesce(d->'product_ids','[]'))));
  select coalesce(jsonb_agg(jsonb_build_object('id',q.id,'title',q.title,'content',q.content,'source_url',q.source_url,'packages',q.routing_packages,'product_ids',q.linked_ids,'updated_at',q.updated_at) order by q.title,q.id),'[]'::jsonb) into docs
  from(select pd.*,public.olivia_document_product_ids(pd.id,pd.catalog_product_id) as linked_ids from public.product_documents pd
