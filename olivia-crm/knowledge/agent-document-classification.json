@@ -1,0 +1,23 @@
+{
+  "olivia_voice_v2": [
+    "always"
+  ],
+  "olivia_bf26_v2": [
+    "black_friday"
+  ],
+  "olivia_registration_v2": [
+    "early_access"
+  ],
+  "olivia_stop_v2": [
+    "opt_out",
+    "safety"
+  ],
+  "olivia_contact_policy_v1": [
+    "orchestrator"
+  ],
+  "olivia_handoff_policy_v1": [
+    "handoff",
+    "support",
+    "safety"
+  ]
+}
