@@ -23,7 +23,7 @@ begin
  if (select status from public.outbound_dispatches where id=did)<>'pending' or (select status from public.olivia_handoffs where id=h)<>'active' then raise exception 'Takeover cancelled internal alert or failed to activate case'; end if;
  select x into claimed from public.olivia_claim_outbound_v2(1)x;
  if claimed->>'phone'<>'+34999000077' or claimed->>'dispatch_id'<>did::text or claimed->>'template_name'<>'olivia_handoff_equipo' then raise exception 'Wrong internal recipient/template'; end if;
- if jsonb_typeof(claimed#>'{template_components,0,parameters,0,text}')<>'string' or claimed#>>'{template_components,0,parameters,0,text}'<>'Demo handoff' or claimed#>>'{template_components,1,parameters,0,text}'<>v::text then raise exception 'Template parameters incorrect'; end if;
+ if jsonb_typeof(claimed#>'{template_components,0,parameters,0,text}')<>'string' or claimed#>>'{template_components,0,parameters,0,text}'<>'Demo handoff' or jsonb_array_length(claimed->'template_components')<>1 or jsonb_array_length(claimed#>'{template_components,0,parameters}')<>6 or claimed#>>'{template_components,0,type}'<>'body' or claimed#>>'{template_components,0,parameters,4,text}' not like '%'||v::text then raise exception 'Template parameters incorrect'; end if;
  update public.outbound_dispatches set status='failed',error_message='Fallo simulado, sin envío' where id=did;
  if not exists(select 1 from public.olivia_handoff_events where handoff_id=h and event_type='notification_failed') then raise exception 'Missing failure audit'; end if;
  select updated_at into stamp from public.conversations where id=v;

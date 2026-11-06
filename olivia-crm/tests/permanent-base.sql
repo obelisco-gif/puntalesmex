@@ -2,9 +2,8 @@ begin;
 do $test$
 declare cid uuid; vid uuid; v_payload text; r jsonb; v_id uuid;
 begin
- select c.id,v.id into cid,vid from public.contacts c join public.conversations v on v.contact_id=c.id
- where c.id='46e8999c-a9ed-486b-8426-c8b07f2aa87a' limit 1;
- if vid is null then raise exception 'Missing QA fixture'; end if;
+ insert into public.contacts(first_name,email,manual_tags) values('QA documental','qa-docs@example.invalid',array['qa_test']) returning id into cid;
+ insert into public.conversations(contact_id,channel) values(cid,'whatsapp') returning id into vid;
  v_payload:=encode(convert_to(jsonb_build_object('contact_id',cid,'conversation_id',vid,'decision',jsonb_build_object('knowledge_packages','[]'::jsonb,'product_ids','[]'::jsonb))::text,'utf8'),'base64');
  insert into public.product_documents(title,content,document_type,approval_status,routing_packages)
  values('QA permanent base','QA base version 1','source','approved',array['always']) returning id into v_id;
