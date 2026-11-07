@@ -1,0 +1,175 @@
+{
+  "workflowId": "bUYWEz3IvHTt3O69",
+  "nodes": [
+    {
+      "name": "Manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "name": "Cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Ventana de sincronización",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select to_char(coalesce(nullif(value->>'cursor','')::timestamptz-interval '5 minutes','1970-01-01'::timestamptz) at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as modified_after,\n to_char(now() at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as modified_before\n from public.olivia_config where key='woo_orders' and coalesce((value->>'enabled')::boolean,false);",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "Dag4NQKGtz0OIhWg",
+          "name": "Postgres Sadiet"
+        }
+      }
+    },
+    {
+      "name": "Leer pedidos WooCommerce",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://comprarcafeverde.es/wp-json/wc/v3/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wooCommerceApi",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ Array.isArray($response.body) && $response.body.length < 100 }}",
+              "limitPagesFetched": false,
+              "requestInterval": 200
+            }
+          }
+        },
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "orderby",
+              "value": "modified"
+            },
+            {
+              "name": "order",
+              "value": "asc"
+            },
+            {
+              "name": "modified_after",
+              "value": "={{ $json.modified_after }}"
+            },
+            {
+              "name": "modified_before",
+              "value": "={{ $json.modified_before }}"
+            },
+            {
+              "name": "dates_are_gmt",
+              "value": "true"
+            },
+            {
+              "name": "_fields",
+              "value": "id,number,customer_id,status,currency,total,date_created_gmt,date_modified_gmt,date_paid_gmt,billing.email,billing.phone,billing.country,billing.first_name,line_items,refunds"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "2zChm0amEgK0ior0",
+          "name": "woocomerce sadiet lectura"
+        }
+      }
+    },
+    {
+      "name": "Normalizar y agrupar pedidos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pure normalization shared by the n8n import and its local tests.\nfunction normalizePhone(value,country='') {\n let digits=String(value??'').replace(/\\D/g,'');\n if(digits.startsWith('00'))digits=digits.slice(2);\n if(country.toUpperCase()==='ES'&&/^[6789]\\d{8}$/.test(digits))digits='34'+digits;\n return /^[1-9]\\d{9,14}$/.test(digits)?'+'+digits:null;\n}\nfunction utc(value,required=false) {\n if(!value){if(required)throw new Error('Falta fecha GMT de WooCommerce');return null;}\n const source=String(value),iso=/Z$|[+-]\\d{2}:\\d{2}$/.test(source)?source:source+'Z';\n if(!Number.isFinite(Date.parse(iso)))throw new Error('Fecha de pedido no válida');\n return new Date(iso).toISOString();\n}\nfunction normalizeOrder(source) {\n const integer=(v,label)=>{if(!Number.isSafeInteger(Number(v))||Number(v)<1)throw new Error(label+' no válido');return Number(v);};\n const money=v=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0||n>9999999999.99)throw new Error('Importe no válido');return Math.round(n*100)/100;};\n if(!/^[a-z][a-z0-9-]{0,60}$/.test(source.status??''))throw new Error('Estado de pedido no válido');\n if(!/^[A-Z]{3}$/.test(source.currency??''))throw new Error('Moneda no válida');\n const email=String(source.billing?.email??'').trim().toLowerCase();\n const refunds=(source.refunds??[]).reduce((sum,r)=>sum+Math.abs(Number(r.total??0)),0);\n return {id:integer(source.id,'Pedido'),order_number:String(source.number??source.id).slice(0,100),customer_id:Number(source.customer_id)||null,status:source.status,\n  billing_email:/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)?email:null,billing_phone:normalizePhone(source.billing?.phone,source.billing?.country??''),billing_country:String(source.billing?.country??'').slice(0,2),billing_first_name:String(source.billing?.first_name??'').trim().slice(0,100),currency:source.currency,total:money(source.total),refunded_total:money(refunds),created_at_woo:utc(source.date_created_gmt,true),source_modified_at:utc(source.date_modified_gmt,true),paid_at:utc(source.date_paid_gmt),\n  items:(source.line_items??[]).map(i=>({line_id:integer(i.id,'Línea'),product_id:Number(i.product_id)||null,variation_id:Number(i.variation_id)||null,name:String(i.name??'Producto sin nombre').slice(0,300),quantity:integer(i.quantity,'Cantidad'),total:money(i.total)}))};\n}\n\nconst all=[];\nfor(const item of $input.all()){\n const body=item.json.body??item.json;\n if(Array.isArray(body))all.push(...body);\n else if(body&&typeof body==='object'&&body.id)all.push(body);\n else throw new Error('Respuesta de WooCommerce no reconocida; no se avanza el cursor');\n}\nconst normalized=all.map(normalizeOrder);\nconst chunks=[];\nfor(let i=0;i<normalized.length;i+=100)chunks.push({json:{orders:normalized.slice(i,i+100)}});\nreturn chunks.length?chunks:[{json:{orders:[]}}];\n"
+      }
+    },
+    {
+      "name": "Guardar pedidos y vincular contactos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_ingest_woo_orders($1::jsonb) as result;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json.orders) }}",
+          "queryBatching": "independently"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "Dag4NQKGtz0OIhWg",
+          "name": "Postgres Sadiet"
+        }
+      }
+    },
+    {
+      "name": "Cerrar ventana completa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const results=$input.all().map(i=>typeof i.json.result==='string'?JSON.parse(i.json.result):i.json.result);if(results.some(r=>!r||typeof r.processed!=='number'))throw new Error('No se ha confirmado la importación de todas las páginas');return [{json:{until:$('Ventana de sincronización').first().json.modified_before,processed:results.reduce((n,r)=>n+r.processed,0)}}];"
+      }
+    },
+    {
+      "name": "Confirmar sincronización",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.olivia_complete_woo_sync($1::timestamptz) as result;",
+        "options": {
+          "queryReplacement": "={{ $json.until }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "Dag4NQKGtz0OIhWg",
+          "name": "Postgres Sadiet"
+        }
+      }
+    }
+  ]
+}

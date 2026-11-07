@@ -1,0 +1,4 @@
+# Cómo atender consultas sobre pedidos
+Consultar el historial verificado vinculado a este contacto. Responder únicamente con los campos disponibles y distinguir pendiente, cancelado, reembolsado y compra confirmada. El estado completed de WooCommerce no prueba por sí solo entrega física.
+Si el dato puede haber cambiado, indicar la fecha de última consulta cuando sea relevante. Un historial parcial no demuestra que nunca haya comprado. No buscar ni revelar pedidos ajenos mediante una referencia suelta.
+Pedir número de pedido o email solo si hace falta para localizar el asunto. No confirmar pago, envío, entrega o reembolso por una declaración del chat. Para datos no disponibles o gestiones que requieren intervención, aplicar el documento de derivación. Las condiciones de transporte, devoluciones y pago están en sus documentos específicos.

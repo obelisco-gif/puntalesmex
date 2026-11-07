@@ -1,0 +1,166 @@
+{
+  "workflowId": "wGt5HylmtJt9FuVo",
+  "name": "Olivia · 00 Registro Meta → CRM",
+  "versionId": "a0f7273d-5727-45a2-8882-7f51ef095ff7",
+  "nodes": [
+    {
+      "id": "a3c97b25-ad80-41a2-b8c0-54217cc538a7",
+      "name": "Recibir lead desde Sheets",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "b7a52d33-111e-4b40-91fe-afe3190a27d2",
+      "name": "Validar y codificar registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$json;\nif(!p.external_lead_id) throw new Error('Falta ID del formulario');\nif(!p.email&&!p.phone) throw new Error('Falta email o móvil');\nreturn {json:{payload_b64:Buffer.from(JSON.stringify(p),'utf8').toString('base64')}};"
+      }
+    },
+    {
+      "id": "79a362db-f71c-4f13-bf0b-569c8ef7fc1a",
+      "name": "Registrar contacto y Early Access en CRM",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "select public.olivia_ingest_meta_sheet_b64($1) as result;",
+        "options": {
+          "queryReplacement": "={{ [ $json.payload_b64 ] }}",
+          "queryBatching": "independently"
+        }
+      }
+    },
+    {
+      "id": "2d134c36-724e-430a-8038-cbde73a25f0d",
+      "name": "Contrato de entrada pendiente de Sheets",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ],
+      "parameters": {
+        "content": "## Meta → EA26 → Hoja 1 → CRM\nGoogle Sheets Trigger: nuevas filas cada minuto. Credencial Cafe Google Sheets Trigger account.\nColumnas reales: id, created_time, correo_electrónico, nombre_y_apellidos, número_de_whatsapp, form_id, form_name y atribución.\nPolítica meta_ea26_form: el responsable confirma ambos canales SOLO para early access 26 en esta hoja. El primer ID de formulario se fija en Supabase; otros formularios no heredan permisos. No se supone un país para móviles sin prefijo.\nDeduplicación por ID y contacto, tag bf2026_early_access, evidencias y trabajos de Klaviyo/bienvenida. Alta con solo email o solo WhatsApp soportada.\nWhatsApp de bienvenida requiere configurar plantilla aprobada. Las altas en conversación las contesta Olivia.",
+        "width": 950,
+        "height": 330,
+        "color": 4
+      }
+    },
+    {
+      "id": "78026240-4b46-4b3e-9baf-5cc544cd3fba",
+      "name": "Meta · Nueva fila EA26 · Hoja 1",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -180
+      ],
+      "parameters": {
+        "authentication": "triggerOAuth2",
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "11LxXyAzPdGBv5SOBt0gojUCRSiUQAXq6BCdE1scnkTs",
+          "cachedResultName": "EA26"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Hoja 1"
+        },
+        "event": "rowAdded",
+        "options": {
+          "valueRender": "FORMATTED_VALUE",
+          "dateTimeRenderOption": "FORMATTED_STRING"
+        }
+      }
+    },
+    {
+      "id": "716796ef-0302-4bc1-a89a-1ea46c2a8814",
+      "name": "Mapear columnas reales de Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        -180
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function normalizeMetaRow(row){\n const text=value=>value===null||value===undefined?'':String(value).trim();\n const identifier=(value,prefix)=>text(value).replace(new RegExp('^'+prefix+':','i'),'');\n const external_lead_id=identifier(row.id??row.external_lead_id,'l');\n if(!external_lead_id)throw new Error('La fila de Meta no incluye id de lead');\n if(typeof row.id==='number'&&!Number.isSafeInteger(row.id))throw new Error('El ID de Meta ha perdido precisión: debe llegar como texto');\n const email=text(row['correo_electrónico']??row.email).toLowerCase()||null;\n let phone=text(row['número_de_whatsapp']??row.phone).replace(/^p:/i,'').replace(/[\\s().-]/g,'');\n if(phone.startsWith('00'))phone='+'+phone.slice(2);\n if(phone&&!phone.startsWith('+')&&/^34\\d{9}$/.test(phone))phone='+'+phone;\n if(phone&&!/^\\+[1-9]\\d{6,14}$/.test(phone))throw new Error('El móvil necesita prefijo internacional; no se ha supuesto un país');\n if(email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))throw new Error('Email del formulario no válido');\n if(!email&&!phone)throw new Error('La fila no incluye email ni WhatsApp');\n const date=text(row.created_time??row.submitted_at);\n const normalizedDate=date.replace(/([+-]\\d{2})(\\d{2})$/,'$1:$2');\n if(date&&!Number.isFinite(Date.parse(normalizedDate)))throw new Error('La fecha de Meta no es válida');\n return {external_lead_id,first_name:text(row['nombre_y_apellidos']??row.first_name)||null,email,phone:phone||null,submitted_at:date?new Date(normalizedDate).toISOString():null,form_id:identifier(row.form_id,'f')||null,form_name:text(row.form_name)||null,ad_id:identifier(row.ad_id,'a')||null,ad_name:text(row.ad_name)||null,adset_id:identifier(row.adset_id,'as')||null,adset_name:text(row.adset_name)||null,campaign_id:identifier(row.campaign_id,'c')||null,utm_campaign:text(row.campaign_name)||'bf2026_early_access',utm_source:'meta',platform:text(row.platform)||null,source_sheet:'EA26',source_sheet_id:'11LxXyAzPdGBv5SOBt0gojUCRSiUQAXq6BCdE1scnkTs',source_tab:'Hoja 1',consent_email:false,consent_whatsapp:false,privacy_accepted:false,consent_text:null};\n}\nreturn {json:normalizeMetaRow($json)};"
+      }
+    }
+  ],
+  "connections": {
+    "Recibir lead desde Sheets": {
+      "main": [
+        [
+          {
+            "node": "Validar y codificar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y codificar registro": {
+      "main": [
+        [
+          {
+            "node": "Registrar contacto y Early Access en CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Nueva fila EA26 · Hoja 1": {
+      "main": [
+        [
+          {
+            "node": "Mapear columnas reales de Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapear columnas reales de Meta": {
+      "main": [
+        [
+          {
+            "node": "Validar y codificar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

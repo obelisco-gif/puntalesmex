@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "../../../lib/auth";
-import { insert } from "../../../lib/supabase";
+import { isAdmin, sameOrigin } from "../../../lib/auth";
+import { rpc } from "../../../lib/supabase";
+import { documentInput } from "../../../lib/document-input";
 
 export async function POST(request: NextRequest) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
   if (!(await isAdmin())) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   try {
-    const input = await request.json();
-    if (!input.title?.trim() || !input.content?.trim()) {
-      return NextResponse.json({ error: "Indica un título y el contenido." }, { status: 400 });
-    }
-    const result = await insert("product_documents", {
-      title: input.title.trim(),
-      content: input.content.trim(),
-      document_type: input.document_type || "commercial",
-      source_url: input.source_url?.trim() || null,
-      approval_status: "draft"
-    });
-    return NextResponse.json(result[0], { status: 201 });
+    const input = documentInput(await request.json());
+    const result = await rpc("save_olivia_document", { p_document: input, p_id: null });
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo crear el documento" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo crear el documento" }, { status: 400 });
   }
 }

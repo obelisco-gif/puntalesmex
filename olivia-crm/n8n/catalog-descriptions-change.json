@@ -1,0 +1,12 @@
+[
+  {
+    "type": "updateNodeParameters",
+    "nodeName": "Preparar catálogo para Olivia",
+    "parameters": {
+      "mode": "runOnceForEachItem",
+      "language": "javaScript",
+      "jsCode": "const source = $json;\nconst stripHtml = (value = '') => String(value)\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nreturn {\n  json: {\n    woocommerce_product_id: source.id,\n    expected_variation_ids: Array.isArray(source.variations) ? source.variations : [],\n    product_type: source.type || 'simple',\n    name: source.name || 'Producto sin nombre',\n    slug: source.slug || '',\n    status: source.status || 'publish',\n    permalink: source.permalink || '',\n    sku: source.sku || '',\n    price: source.price || '',\n    regular_price: source.regular_price || '',\n    sale_price: source.sale_price || '',\n    on_sale: Boolean(source.on_sale),\n    purchasable: Boolean(source.purchasable),\n    stock_status: source.stock_status || 'unknown',\n    stock_quantity: source.stock_quantity ?? '',\n    image_url: source.images?.[0]?.src || '',\n    categories: source.categories || [],\n    tags: source.tags || [],\n    attributes: source.attributes || [],\n    short_description: stripHtml(source.short_description).slice(0, 1500),\n    description: stripHtml(source.description).slice(0, 20000),\n    source_modified_at: source.date_modified_gmt || source.date_modified || ''\n  }\n};"
+    },
+    "replace": true
+  }
+]

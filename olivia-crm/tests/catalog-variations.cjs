@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict');
+const {normalizeVariationSnapshots}=require('../n8n/catalog-variations-normalize.cjs');
+const make=id=>({id,status:'publish',price:'0',regular_price:'',sale_price:'',stock_status:'instock',stock_quantity:0,purchasable:true,attributes:[{name:'Sabor',option:''}],date_modified_gmt:'2026-11-05T10:00:00'});
+const seeds=[{catalog_product_id:'parent-a',woocommerce_product_id:10,expected_ids:Array.from({length:101},(_,i)=>i+1),requested_at:'2026-11-05T10:00:00Z'},{catalog_product_id:'parent-b',woocommerce_product_id:20,expected_ids:[201],requested_at:'2026-11-05T10:00:00Z'}];
+const input=[{json:{body:Array.from({length:100},(_,i)=>make(i+1))}},{json:{body:[make(101)]}},{json:{body:[{...make(201),price:'22.50',stock_quantity:null}]}}];
+const result=normalizeVariationSnapshots(input,i=>seeds[i<2?0:1]);
+assert.equal(result.length,2);assert.equal(result[0].json.variations.length,101);assert.equal(result[1].json.woocommerce_product_id,20);
+assert.equal(result[0].json.variations[0].price,0);assert.equal(result[0].json.variations[0].stock_quantity,0);assert.equal(result[1].json.variations[0].stock_quantity,null);
+assert.equal(result[0].json.variations[0].name,'Cualquier Sabor');assert.equal(result[0].json.variations[0].source_modified_at,'2026-11-05T10:00:00.000Z');
+assert.throws(()=>normalizeVariationSnapshots(input.slice(0,1),()=>seeds[0]),/incompleta/);
+assert.throws(()=>normalizeVariationSnapshots([{json:{body:{error:'API failure'}}}],()=>seeds[0]),/no válida/);
+assert.equal(normalizeVariationSnapshots([{json:{body:[]}}],()=>({...seeds[0],expected_ids:[]}))[0].json.variations.length,0);
+console.log('PASS: parent correlation across pages, 101 variants, completeness checks, empty sets, zero/null stock, wildcard attributes and UTC dates.');
