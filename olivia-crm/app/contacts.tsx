@@ -6,11 +6,11 @@ import { DeleteContact } from "./delete-contact";
 
 type Row={id:string;first_name:string|null;email:string|null;phone:string|null;stage:string;manual_tags:string[];source:string|null;updated_at:string;score:number;conversation_id:string|null};
 type Directory={rows:Row[];total:number;page:number;page_size:number};
-type Props={products:{id:string;name:string}[];onSave:(resource:string,id:string,body:Record<string,unknown>)=>Promise<boolean>};
+type Props={products:{id:string;name:string}[];onSave:(resource:string,id:string,body:Record<string,unknown>)=>Promise<boolean>;earlyAccess?:boolean};
 type Selected={kind:"conversation"|"contact";id:string}|null;
 
-export function Contacts({products,onSave}:Props){
- const [selected,setSelected]=useState<Selected>(null),[page,setPage]=useState(1),[search,setSearch]=useState(""),[q,setQ]=useState(""),[stage,setStage]=useState(""),[tag,setTag]=useState("");
+export function Contacts({products,onSave,earlyAccess=false}:Props){
+ const [selected,setSelected]=useState<Selected>(null),[page,setPage]=useState(1),[search,setSearch]=useState(""),[q,setQ]=useState(""),[stage,setStage]=useState(""),[tag,setTag]=useState(earlyAccess?"bf2026_early_access":"");
  const [data,setData]=useState<Directory|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[revision,setRevision]=useState(0);
  useEffect(()=>{
   const sync=()=>{const p=new URLSearchParams(window.location.search);const conversation=p.get("conversation"),contact=p.get("contact");setSelected(conversation?{kind:"conversation",id:conversation}:contact?{kind:"contact",id:contact}:null);};sync();
@@ -24,7 +24,7 @@ export function Contacts({products,onSave}:Props){
   return()=>abort.abort();
  },[page,q,stage,tag,revision,selectedId]);
  const open=(item:Selected)=>{
-  const u=new URL(window.location.href);u.searchParams.set("tab","contactos");u.searchParams.delete("conversation");u.searchParams.delete("contact");
+  const u=new URL(window.location.href);u.searchParams.set("tab",earlyAccess?"acceso-prioritario":"contactos");u.searchParams.delete("conversation");u.searchParams.delete("contact");
   if(item)u.searchParams.set(item.kind,item.id);window.history.pushState({},"",u);setSelected(item);
  };
  if(selected?.kind==="conversation")return <ConversationDetail key={selected.id} id={selected.id} products={products} onSave={onSave} onBack={()=>open(null)}/>;
@@ -32,7 +32,7 @@ export function Contacts({products,onSave}:Props){
  const filter=(e:FormEvent)=>{e.preventDefault();setPage(1);setQ(search.trim());setRevision(v=>v+1);};
  const pages=Math.max(1,Math.ceil((data?.total||0)/50));
  return <section className="conversation-directory"><div className="directory-intro"><p>Selecciona un contacto para abrir su conversación y ficha completa.</p><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}>Actualizar contactos</button></div>
- <form className="conversation-filters" onSubmit={filter}><label>Buscar contacto<input maxLength={100} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, email o teléfono"/></label><label>Fase<select value={stage} onChange={e=>{setStage(e.target.value);setPage(1);}}><option value="">Todas las fases</option>{stages.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label>Early Access<select value={tag} onChange={e=>{setTag(e.target.value);setPage(1);}}><option value="">Todos los contactos</option><option value="bf2026_early_access">Inscritos en Early Access</option></select></label><button>Buscar</button></form>
+ <form className="conversation-filters" onSubmit={filter}><label>Buscar contacto<input maxLength={100} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre, email o teléfono"/></label><label>Fase<select value={stage} onChange={e=>{setStage(e.target.value);setPage(1);}}><option value="">Todas las fases</option>{stages.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>{!earlyAccess&&<label>Acceso prioritario<select value={tag} onChange={e=>{setTag(e.target.value);setPage(1);}}><option value="">Todos los contactos</option><option value="bf2026_early_access">Inscritos en acceso prioritario</option></select></label>}<button>Buscar</button></form>
  {loading&&<p role="status">Cargando contactos…</p>}{error&&<p role="alert">{error}</p>}
  {!loading&&!error&&data&&<><div className="conversation-rows">{data.rows.length?data.rows.map(row=>{
   const name=row.first_name||row.phone||row.email||"Sin nombre";

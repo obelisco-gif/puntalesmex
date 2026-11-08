@@ -5,6 +5,7 @@ import { Documentation, type DocumentRecord } from "./documentation";
 import { Contacts } from "./contacts";
 import { Handoffs } from "./handoffs";
 import { Conversations } from "./conversations";
+import { EarlyAccess } from "./early-access";
 import { ProductVariations, type ProductVariation } from "./product-variations";
 
 type Product = { product_type?:string; variations?:ProductVariation[]; variations_synced_at?:string|null; variations_sync_status?:string; id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
@@ -12,7 +13,7 @@ type Document = DocumentRecord;
 type Touchpoint = { id: string; channel: string; source: string | null; campaign: string | null; medium: string | null; content: string | null; occurred_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
 type Dashboard = { products: Product[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
 
-const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contactos","Contactos"],["handoffs","Handoffs"],["catalogo","Catálogo"],["documentacion","Documentación"],["atribucion","Atribución"]];
+const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contactos","Contactos"],["acceso-prioritario","Acceso prioritario"],["handoffs","Handoffs"],["catalogo","Catálogo"],["documentacion","Documentación"],["atribucion","Atribución"]];
 
 export default function OliviaCrm() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -94,7 +95,7 @@ export default function OliviaCrm() {
 
   if (!data) return <main className="login-shell"><section className="login-card"><p className="eyebrow">SADIET · OLIVIA</p><h1>Acceso al CRM</h1><p>Entra con tu email y contraseña personal.</p><form onSubmit={login}><label>Email<input type="email" name="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus /></label><label>Contraseña<input type="password" name="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label><button disabled={busy}>{busy ? "Espera…" : "Entrar"}</button><button type="button" className="secondary" disabled={busy} onClick={recover}>Recuperar contraseña</button></form><p>Acceso reservado a las cuentas autorizadas de Sadiet.</p>{notice && <p className="notice" role="status">{notice}</p>}</section></main>;
 
-  const titles: Record<string, string> = { resumen: "Visión general", conversaciones: "Conversaciones", contactos: "Contactos", handoffs: "Handoffs", catalogo: "Catálogo", documentacion: "Documentación", atribucion: "Atribución" };
+  const titles: Record<string, string> = { resumen: "Visión general", conversaciones: "Conversaciones", contactos: "Contactos", "acceso-prioritario": "Acceso prioritario · Black Friday", handoffs: "Handoffs", catalogo: "Catálogo", documentacion: "Documentación", atribucion: "Atribución" };
 
   return <main className="app-shell">
     <aside><div className="brand"><span>●</span><strong>Olivia</strong><small>CRM Sadiet</small></div>
@@ -106,6 +107,7 @@ export default function OliviaCrm() {
       {tab === "resumen" && <Summary data={data} />}
       {tab === "catalogo" && <section className="catalog">{data.products.map((product) => <ProductCard key={product.id} product={product} onSave={saveNotes} />)}</section>}
       {tab === "contactos" && <Contacts products={data.products} onSave={saveResource} />}
+      {tab === "acceso-prioritario" && <EarlyAccess products={data.products} onSave={saveResource} />}
       {tab === "handoffs" && <Handoffs />}
       {tab === "conversaciones" && <Conversations products={data.products} onSave={saveResource} />}
       {tab === "documentacion" && <Documentation documents={data.documents} products={data.products} onSave={saveDocument} />}

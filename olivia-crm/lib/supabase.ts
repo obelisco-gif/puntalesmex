@@ -21,6 +21,17 @@ export async function select<T>(table: string, query: string): Promise<T[]> {
   return response.json();
 }
 
+export async function count(table: string, query: string): Promise<number> {
+  const { baseUrl } = config();
+  const response = await fetch(baseUrl + "/rest/v1/" + table + "?" + query, {
+    method: "HEAD", headers: headers({ Prefer: "count=exact" }), cache: "no-store"
+  });
+  if (!response.ok) throw new Error("No se pudo contar " + table);
+  const total = response.headers.get("content-range")?.split("/").pop();
+  if (!total || !/^\d+$/.test(total)) throw new Error("No se pudo obtener el total de " + table);
+  return Number(total);
+}
+
 export async function update<T>(table: string, id: string, body: object): Promise<T[]> {
   const { baseUrl } = config();
   const response = await fetch(baseUrl + "/rest/v1/" + table + "?id=eq." + encodeURIComponent(id), {
