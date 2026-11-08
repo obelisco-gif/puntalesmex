@@ -1,0 +1,7 @@
+{
+  "workflowId": "A82j0piAkLvHbISZ",
+  "node": "Desempaquetar trabajo",
+  "jsCode": "const j=$json.job;\nif(!j?.job_id)return null;\nconst attributes={email:j.email};\nif(j.first_name)attributes.first_name=j.first_name;\nif(j.kind==='klaviyo_early_access') attributes.properties={sadiet_contact_id:j.contact_id,bf2026_early_access:true,bf2026_source:'sadiet_crm'};\nreturn {json:{...j,profile_body:{data:{type:'profile',attributes}}}};",
+  "agentWorkflowId": "QDOikeCfSMeCq7BB",
+  "orchestratorPromptAddition": "\nCAMBIO EXPLÍCITO DE CORREO: si el contacto pide sustituir su email (por ejemplo «mejor me suscribes en el mail ...»), captured_email debe contener el correo literal nuevo y email_opt_in=true si también pide suscripción o avisos por email. No marques needs_human por el mero hecho de que ya conste otro correo; el sistema verifica si pertenece a otra ficha y solo ese conflicto real requiere revisión. Un cambio de correo sin petición de comunicaciones no concede permiso nuevo. No prometas alta completada: la cola del nuevo correo debe confirmar pertenencia."
+}

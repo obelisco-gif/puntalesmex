@@ -1,0 +1,35 @@
+begin;
+do $$
+declare c uuid;other uuid;v uuid;h uuid;d uuid;stamp timestamptz;r jsonb;actor uuid:=gen_random_uuid();order_id bigint;
+begin
+ insert into public.contacts(phone,email,first_name,manual_tags,preferences,ai_disclosure_shown) values('+34999000551','delete-test@example.invalid','Prueba borrado',array['bf2026_early_access'],'{"early_access":{"source":"conversation"},"olivia":{"summary":"Memoria anterior"}}',true) returning id,updated_at into c,stamp;
+ insert into public.contacts(phone) values('+34999000552') returning id into other;
+ insert into public.conversations(contact_id,channel) values(c,'whatsapp') returning id into v;
+ insert into public.messages(conversation_id,direction,body) values(v,'inbound','Mensaje de prueba');
+ insert into public.inbound_message_buffer(contact_id,conversation_id,channel,external_message_id,status,normalized_text) values(c,v,'whatsapp','delete-contact-test','claimed','Texto');
+ insert into public.contact_channel_consents(contact_id,channel,status,source,evidence) values(c,'whatsapp','granted','crm','{}');
+ insert into public.contact_events(contact_id,event_type,source,metadata) values(c,'test','crm','{}');
+ insert into public.lead_magnet_deliveries(contact_id) values(c);
+ insert into public.product_recommendations(contact_id) values(c);
+ insert into public.olivia_handoffs(contact_id,conversation_id,reason,summary,source,status) values(c,v,'Prueba','Resumen de prueba','olivia','requested') returning id into h;
+ insert into public.outbound_dispatches(channel,delivery_type,payload) values('whatsapp','template',jsonb_build_object('kind','human_handoff_alert','handoff_id',h)) returning id into d;
+ begin perform public.olivia_delete_contact(c,stamp-interval '1 second',actor);raise exception 'Stale deletion accepted';exception when others then if sqlerrm='Stale deletion accepted' then raise;end if;end;
+ update public.outbound_dispatches set status='processing' where id=d;
+ begin perform public.olivia_delete_contact(c,stamp,actor);raise exception 'In-flight deletion accepted';exception when others then if sqlerrm='In-flight deletion accepted' then raise;end if;end;
+ if not exists(select 1 from public.contacts where id=c) then raise exception 'Failed deletion was partial';end if;
+ update public.outbound_dispatches set status='pending' where id=d;
+ update public.olivia_integration_jobs set status='processing' where contact_id=c;
+ begin perform public.olivia_delete_contact(c,stamp,actor);raise exception 'Integration in-flight deletion accepted';exception when others then if sqlerrm='Integration in-flight deletion accepted' then raise;end if;end;
+ update public.olivia_integration_jobs set status='pending' where contact_id=c;
+ r:=public.olivia_delete_contact(c,stamp,actor);
+ if not (r->>'deleted')::boolean or exists(select 1 from public.contacts where id=c) then raise exception 'Contact not deleted';end if;
+ if exists(select 1 from public.outbound_dispatches where id=d or contact_id=c) or exists(select 1 from public.inbound_message_buffer where contact_id=c or conversation_id=v) or exists(select 1 from public.messages where conversation_id=v) or exists(select 1 from public.olivia_handoffs where id=h) or exists(select 1 from public.olivia_integration_jobs where contact_id=c) or exists(select 1 from public.contact_channel_consents where contact_id=c) or exists(select 1 from public.lead_magnet_deliveries where contact_id=c) then raise exception 'Associated state remains';end if;
+ if not exists(select 1 from public.contacts where id=other) then raise exception 'Another contact deleted';end if;
+ if not exists(select 1 from public.olivia_contact_deletions where contact_id=c and actor_id=actor) then raise exception 'Deletion not audited';end if;
+ if not (public.olivia_delete_contact(c,stamp,actor)->>'already_deleted')::boolean then raise exception 'Repeat not idempotent';end if;
+ insert into public.contacts(phone,email) values('+34999000551','delete-test@example.invalid') returning id into c;
+ if (select ai_disclosure_shown or cardinality(manual_tags)>0 or preferences?'olivia' from public.contacts where id=c) then raise exception 'Fresh profile inherited memory';end if;
+ if has_function_privilege('anon','public.olivia_delete_contact(uuid,timestamptz,uuid)','execute') or has_function_privilege('authenticated','public.olivia_delete_contact(uuid,timestamptz,uuid)','execute') then raise exception 'Deletion exposed to browser';end if;
+end;$$;
+rollback;
+select 'PASS: explicit admin deletion, stale/in-flight protection, full conversation/queue/handoff cleanup, isolated contact, audit, repeat and fresh identity.' as result;

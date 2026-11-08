@@ -1,0 +1,40 @@
+{
+  "workflowId": "QDOikeCfSMeCq7BB",
+  "source": "Guardar respuesta en cola · sin enviar",
+  "node": {
+    "name": "Activar outbound de Olivia",
+    "type": "n8n-nodes-base.executeWorkflow",
+    "typeVersion": 1.3,
+    "position": [
+      3450,
+      0
+    ],
+    "parameters": {
+      "mode": "once",
+      "source": "database",
+      "workflowId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "v1OCEolcgZesKiVV"
+      },
+      "workflowInputs": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "dispatch_id": "={{ $json.result?.dispatch_id ?? '' }}"
+        },
+        "schema": [
+          {
+            "id": "dispatch_id",
+            "displayName": "dispatch_id",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "matchingColumns": []
+      },
+      "options": {
+        "waitForSubWorkflow": false
+      }
+    }
+  }
+}

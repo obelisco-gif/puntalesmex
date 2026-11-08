@@ -1,0 +1,31 @@
+begin;
+do $$
+declare c uuid;v uuid;b uuid;p jsonb;r jsonb;other uuid;old_job uuid;
+begin
+ insert into public.contacts(email,phone,manual_tags,preferences) values('old-email@example.invalid','+34999000671',array['bf2026_early_access'],'{"early_access":{"source":"conversation"}}') returning id into c;
+ insert into public.conversations(contact_id,channel) values(c,'whatsapp') returning id into v;
+ insert into public.contact_channel_consents(contact_id,channel,status,source,evidence) values(c,'email','granted','crm','{}');
+ select id into old_job from public.olivia_integration_jobs where contact_id=c and kind='klaviyo_early_access';
+ update public.olivia_integration_jobs set status='blocked',payload=payload||'{"block_reason":"hard_bounce"}',last_error='Old hard bounce' where id=old_job;
+ insert into public.inbound_message_buffer(contact_id,conversation_id,channel,external_message_id,status,normalized_text) values(c,v,'whatsapp','qa-replace-email','claimed','Perdon, mejor me suscribes en el mail new-email@example.invalid') returning id into b;
+ p:=jsonb_build_object('contact_id',c,'conversation_id',v,'batch_ids',jsonb_build_array(b),'decision',jsonb_build_object('captured_email','new-email@example.invalid','email_opt_in',true,'commercial_updates','[]'::jsonb));
+ r:=convert_from(decode(public.olivia_conversation_actions_b64(encode(convert_to(p::text,'utf8'),'base64')),'base64'),'utf8')::jsonb;
+ if r#>>'{decision,action_result,email_changed}' is distinct from 'true' or r#>>'{decision,action_result,email_opt_in_recorded}' is distinct from 'true' then raise exception 'Explicit replacement rejected';end if;
+ if (select email from public.contacts where id=c)<>'new-email@example.invalid' or (select phone from public.contacts where id=c)<>'+34999000671' then raise exception 'Contact identity lost';end if;
+ if (select status from public.olivia_integration_jobs where id=old_job)<>'blocked' then raise exception 'Old bounce history modified';end if;
+ if not exists(select 1 from public.olivia_integration_jobs where contact_id=c and status='pending' and payload->>'email'='new-email@example.invalid') then raise exception 'No fresh email-specific job';end if;
+ if public.olivia_email_signup_status(c)->>'status'<>'pending' then raise exception 'New address inherited old bounce';end if;
+ perform public.olivia_conversation_actions_b64(encode(convert_to(p::text,'utf8'),'base64'));
+ if (select count(*) from public.contact_events where contact_id=c and event_type='email_changed')<>1 then raise exception 'Duplicate change audit';end if;
+ insert into public.contacts(email) values('other-contact@example.invalid') returning id into other;
+ insert into public.inbound_message_buffer(contact_id,conversation_id,channel,external_message_id,status,normalized_text) values(c,v,'whatsapp','qa-replace-conflict','claimed','Cambia mi correo a other-contact@example.invalid') returning id into b;
+ p:=p||jsonb_build_object('batch_ids',jsonb_build_array(b),'decision',jsonb_build_object('captured_email','other-contact@example.invalid','email_opt_in',true));
+ r:=convert_from(decode(public.olivia_conversation_actions_b64(encode(convert_to(p::text,'utf8'),'base64')),'base64'),'utf8')::jsonb;
+ if r#>>'{decision,action_result,email_conflict}' is distinct from 'true' or (select email from public.contacts where id=c)<>'new-email@example.invalid' then raise exception 'Another contact email overwritten';end if;
+ insert into public.inbound_message_buffer(contact_id,conversation_id,channel,external_message_id,status,normalized_text) values(c,v,'whatsapp','qa-replace-no-permission','claimed','Cambia mi correo a update-only@example.invalid') returning id into b;
+ p:=p||jsonb_build_object('batch_ids',jsonb_build_array(b),'decision',jsonb_build_object('captured_email','update-only@example.invalid','email_opt_in',false));
+ perform public.olivia_conversation_actions_b64(encode(convert_to(p::text,'utf8'),'base64'));
+ if (select status from public.contact_channel_consents where contact_id=c and channel='email')<>'unknown' then raise exception 'Old consent transferred without new permission';end if;
+end;$$;
+rollback;
+select 'PASS: explicit email replacement, same contact/phone/tags, new email job, old bounce history, idempotence, real identity conflict and no inherited consent.' as result;

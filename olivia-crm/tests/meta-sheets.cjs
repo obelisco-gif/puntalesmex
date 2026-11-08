@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const {normalizeMetaRow}=require('../n8n/meta-sheets-normalize.cjs');
+const row={id:'l:12345678901234567',created_time:'2026-11-05T09:00:00+0100','correo_electrónico':' PRUEBA@example.invalid ','nombre_y_apellidos':'Persona ficticia','número_de_whatsapp':'p:+34 699 000 999',form_id:'f:888',campaign_name:'BF26'};
+const p=normalizeMetaRow(row);assert.equal(p.external_lead_id,'12345678901234567');assert.equal(p.phone,'+34699000999');assert.equal(p.email,'prueba@example.invalid');assert.equal(p.submitted_at,'2026-11-05T08:00:00.000Z');assert.equal(p.form_id,'888');assert.equal(p.consent_email,false);assert.equal(p.consent_whatsapp,false);
+assert.equal(normalizeMetaRow({...row,'correo_electrónico':''}).email,null);
+assert.equal(normalizeMetaRow({...row,'número_de_whatsapp':''}).phone,null);
+assert.throws(()=>normalizeMetaRow({...row,'correo_electrónico':'','número_de_whatsapp':''}));
+assert.throws(()=>normalizeMetaRow({...row,'número_de_whatsapp':'699000999'}));
+assert.throws(()=>normalizeMetaRow({...row,id:123456789012345678}));
+assert.throws(()=>normalizeMetaRow({...row,created_time:'bad-date'}));
+console.log('PASS: actual Meta headers, single-channel rows, text IDs, international phones, dates and no inferred consent.');

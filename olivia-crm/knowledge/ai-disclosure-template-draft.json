@@ -1,0 +1,11 @@
+{
+  "name": "olivia_aviso_ia",
+  "language": "es",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Nota: este chat puede contar con apoyo de ia"
+    }
+  ]
+}
