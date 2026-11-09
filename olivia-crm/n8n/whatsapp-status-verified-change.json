@@ -2,6 +2,18 @@
   "workflow": "QDOikeCfSMeCq7BB",
   "operations": [
     {
+      "type": "updateNodeParameters",
+      "nodeName": "Webhook · WhatsApp entrante",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sadiet",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "replace": true
+    },
+    {
       "type": "addNode",
       "node": {
         "name": "Verificar firma y cuenta",
@@ -20,13 +32,16 @@
               {
                 "name": "x-hub-signature-256",
                 "value": "={{ $json.headers['x-hub-signature-256'] || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
               }
             ]
           },
           "sendBody": true,
-          "contentType": "raw",
-          "rawContentType": "application/json",
-          "body": "={{ JSON.stringify($json.body) }}",
+          "contentType": "binaryData",
+          "inputDataFieldName": "data",
           "options": {
             "timeout": 8000
           }
@@ -45,7 +60,7 @@
         ],
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "return {json: $('Webhook · WhatsApp entrante').item.json};"
+          "jsCode": "const original=$('Webhook · WhatsApp entrante').item; return {json:original.json,binary:original.binary};"
         }
       }
     },
@@ -61,7 +76,7 @@
         ],
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const b=$json.body; const found=Array.isArray(b?.entry)&&b.entry.some(e=>Array.isArray(e.changes)&&e.changes.some(c=>Array.isArray(c.value?.statuses)&&c.value.statuses.length>0)); if(!found)return null; return {json:$json};"
+          "jsCode": "const b=$json.body; const found=Array.isArray(b?.entry)&&b.entry.some(e=>Array.isArray(e.changes)&&e.changes.some(c=>Array.isArray(c.value?.statuses)&&c.value.statuses.length>0)); if(!found)return null; return {json:$json,binary:$('Webhook · WhatsApp entrante').item.binary};"
         }
       }
     },
@@ -84,13 +99,16 @@
               {
                 "name": "x-hub-signature-256",
                 "value": "={{ $json.headers['x-hub-signature-256'] || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
               }
             ]
           },
           "sendBody": true,
-          "contentType": "raw",
-          "rawContentType": "application/json",
-          "body": "={{ JSON.stringify($json.body) }}",
+          "contentType": "binaryData",
+          "inputDataFieldName": "data",
           "options": {
             "timeout": 8000
           }

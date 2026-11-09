@@ -1,6 +1,5 @@
 // Local-only UI fixture. No live credentials, real contacts or external calls.
 const http = require('node:http');
-const {createHmac}=require('node:crypto');
 const {spawn} = require('node:child_process');
 const email='admin@example.invalid';
 const user={id:'00000000-0000-4000-8000-000000000001',aud:'authenticated',role:'authenticated',email,email_confirmed_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{},created_at:new Date().toISOString()};
@@ -33,11 +32,6 @@ const provider=http.createServer(async(req,res)=>{let raw='';for await(const c o
  }));
  if(req.url.startsWith('/rest/v1/rpc/olivia_record_whatsapp_status'))return res.end('true');
  if(req.url.startsWith('/rest/v1/rpc/olivia_whatsapp_source_allowed'))return res.end('true');
- if(req.url.startsWith('/test/inbound')){
-  const expected='sha256='+createHmac('sha256','test-only-meta-secret').update(JSON.stringify(b)).digest('hex');
-  if(req.headers['x-hub-signature-256']!==expected){res.statusCode=401;return res.end('{}');}
-  return res.end('{"ok":true}');
- }
  if(req.url.startsWith('/rest/v1/rpc/olivia_manual_reply')){const c=conversations.find(c=>c.id===b.p_conversation);c.handoff_status='human';c.updated_at=new Date().toISOString();messages.push({id:b.p_request,direction:'outbound',body:b.p_body,created_at:new Date().toISOString(),delivery_status:'pending',sender_role:'human'});return res.end(JSON.stringify({dispatch_id:b.p_request,status:'pending',outbound_enabled:false}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_save_conversation')){const c=conversations.find(c=>c.id===b.p_id);Object.assign(c,b.p_input,{updated_at:new Date().toISOString()});return res.end(JSON.stringify({conversation:c,in_flight:0,cancelled_dispatches:0}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_contact_directory')){const rows=contactRows.filter(c=>!deletedContactIds.has(c.id)&&(!b.p_stage||c.stage===b.p_stage)&&(!b.p_tag||c.manual_tags.includes(b.p_tag))&&(!b.p_search||[c.first_name,c.email,c.phone].some(v=>v?.includes(b.p_search))));const page=Math.min(b.p_page||1,Math.max(1,Math.ceil(rows.length/50)));return res.end(JSON.stringify({rows:rows.slice((page-1)*50,page*50),total:rows.length,page,page_size:50}));}
@@ -49,6 +43,6 @@ const provider=http.createServer(async(req,res)=>{let raw='';for await(const c o
  res.end('[]');
 });
 provider.listen(3338,'127.0.0.1',()=>{
- const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3337'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:3338',SUPABASE_PUBLISHABLE_KEY:'fake-public',SUPABASE_SERVICE_ROLE_KEY:'fake-service',META_APP_SECRET:'test-only-meta-secret',META_WEBHOOK_VERIFY_TOKEN:'test-only-verify',OLIVIA_N8N_WEBHOOK_URL:'http://127.0.0.1:3338/test/inbound',CRM_ADMIN_EMAILS:email,CRM_SITE_URL:'http://localhost:3337',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit'});
+ const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3337'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:3338',SUPABASE_PUBLISHABLE_KEY:'fake-public',SUPABASE_SERVICE_ROLE_KEY:'fake-service',META_APP_SECRET:'test-only-meta-secret',CRM_ADMIN_EMAILS:email,CRM_SITE_URL:'http://localhost:3337',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit'});
  process.on('SIGINT',()=>{child.kill();provider.close();process.exit();});
 });
