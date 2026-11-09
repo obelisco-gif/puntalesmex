@@ -1,0 +1,149 @@
+{
+  "workflow": "QDOikeCfSMeCq7BB",
+  "operations": [
+    {
+      "type": "addNode",
+      "node": {
+        "name": "Verificar firma y cuenta",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -1570,
+          -320
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://olivia-crm-weld.vercel.app/api/webhooks/whatsapp-status?verify_only=1",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-hub-signature-256",
+                "value": "={{ $json.headers['x-hub-signature-256'] || '' }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify($json.body) }}",
+          "options": {
+            "timeout": 8000
+          }
+        }
+      }
+    },
+    {
+      "type": "addNode",
+      "node": {
+        "name": "Restaurar evento verificado",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1430,
+          -320
+        ],
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "return {json: $('Webhook · WhatsApp entrante').item.json};"
+        }
+      }
+    },
+    {
+      "type": "addNode",
+      "node": {
+        "name": "Separar estados Meta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1260,
+          -480
+        ],
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const b=$json.body; const found=Array.isArray(b?.entry)&&b.entry.some(e=>Array.isArray(e.changes)&&e.changes.some(c=>Array.isArray(c.value?.statuses)&&c.value.statuses.length>0)); if(!found)return null; return {json:$json};"
+        }
+      }
+    },
+    {
+      "type": "addNode",
+      "node": {
+        "name": "Registrar estados Meta",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -1020,
+          -480
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://olivia-crm-weld.vercel.app/api/webhooks/whatsapp-status",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-hub-signature-256",
+                "value": "={{ $json.headers['x-hub-signature-256'] || '' }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify($json.body) }}",
+          "options": {
+            "timeout": 8000
+          }
+        }
+      }
+    },
+    {
+      "type": "removeConnection",
+      "source": "Webhook · WhatsApp entrante",
+      "target": "Preparar entrada Meta"
+    },
+    {
+      "type": "addConnection",
+      "source": "Webhook · WhatsApp entrante",
+      "target": "Verificar firma y cuenta"
+    },
+    {
+      "type": "addConnection",
+      "source": "Verificar firma y cuenta",
+      "target": "Restaurar evento verificado"
+    },
+    {
+      "type": "addConnection",
+      "source": "Restaurar evento verificado",
+      "target": "Preparar entrada Meta"
+    },
+    {
+      "type": "addConnection",
+      "source": "Restaurar evento verificado",
+      "target": "Separar estados Meta"
+    },
+    {
+      "type": "addConnection",
+      "source": "Separar estados Meta",
+      "target": "Registrar estados Meta"
+    },
+    {
+      "type": "setNodeSettings",
+      "nodeName": "Verificar firma y cuenta",
+      "settings": {
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      }
+    },
+    {
+      "type": "setNodeSettings",
+      "nodeName": "Registrar estados Meta",
+      "settings": {
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000
+      }
+    }
+  ]
+}
