@@ -1,0 +1,13 @@
+const assert = require('node:assert/strict');
+const { createHmac } = require('node:crypto');
+const { verifyMetaSignature } = require('../lib/verify-meta-signature.cjs');
+const secret = 'test-only-secret';
+const raw = Buffer.from('{"object":"whatsapp_business_account","entry": []}\n');
+const valid = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
+assert.equal(verifyMetaSignature(raw, valid, secret), true);
+assert.equal(verifyMetaSignature(Buffer.from(raw.toString().trim()), valid, secret), false);
+assert.equal(verifyMetaSignature(raw, valid, 'other-secret'), false);
+assert.equal(verifyMetaSignature(raw, 'sha256=abc', secret), false);
+assert.equal(verifyMetaSignature(raw, undefined, secret), false);
+assert.equal(verifyMetaSignature(raw, valid, ''), false);
+console.log('PASS: valid HMAC, exact bytes, missing and invalid signatures');

@@ -1,5 +1,6 @@
 // Local-only UI fixture. No live credentials, real contacts or external calls.
 const http = require('node:http');
+const {createHmac}=require('node:crypto');
 const {spawn} = require('node:child_process');
 const email='admin@example.invalid';
 const user={id:'00000000-0000-4000-8000-000000000001',aud:'authenticated',role:'authenticated',email,email_confirmed_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{},created_at:new Date().toISOString()};
@@ -13,6 +14,7 @@ contact.attribute_records=[{id:'attr-demo-1',attribute_key:'preferred_products',
 contact.purchase_history={order_count:2,purchase_count:2,last_purchase_at:'2026-10-25T09:00:00Z',last_sync:'2026-11-04T10:00:00Z',history_complete:true,usual_products:[{name:'Colágeno marino Peptan®',orders:2,units:2}],recent_orders:[{id:100,order_number:'DEMO-100',status:'completed',currency:'EUR',total:42.50,refunded_total:0,created_at_woo:'2026-10-25T09:00:00Z',items:[{name:'Colágeno marino Peptan®',quantity:1}]}]};
 const conversations=Array.from({length:52},(_,i)=>({id:'00000000-0000-4000-8000-'+String(i+100).padStart(12,'0'),contact_id:contact.id,channel:'whatsapp',status:'open',priority:'normal',handoff_status:'bot',internal_notes:'',updated_at:new Date(Date.now()-i*60000).toISOString(),contact:{first_name:i===0?'Contacto de demostración':'Contacto ficticio '+(i+1),phone:contact.phone,email:contact.email,tags:contact.manual_tags},preview:contact.preferences.olivia.summary,score:80}));
 const messages=[{id:'00000000-0000-4000-8000-000000000200',direction:'outbound',body:'Nota: este chat puede contar con apoyo de ia',created_at:'2026-11-04T09:59:59Z',delivery_status:'sent',sender_role:'assistant'},{id:'00000000-0000-4000-8000-000000000201',direction:'inbound',body:'Hola, me gusta el colágeno. ¿También habrá café verde con jengibre en Black Friday?',created_at:'2026-11-04T10:00:00Z'},{id:'00000000-0000-4000-8000-000000000202',direction:'outbound',body:'¡Hola! Ya estás en el acceso anticipado. Entrarás 24 horas antes de la apertura al público. El stock es limitado. ¿Quieres que revisemos el café con jengibre?',created_at:'2026-11-04T10:01:00Z',delivery_status:'delivered'},{id:'00000000-0000-4000-8000-000000000203',direction:'inbound',body:'Sí, y quería consultar el envío de mi pedido DEMO-123.',created_at:'2026-11-04T10:02:00Z'}];
+messages.push({id:'00000000-0000-4000-8000-000000000204',direction:'outbound',body:'Mensaje de prueba entregado.',created_at:'2026-11-04T10:03:00Z',delivery_status:'sent'},{id:'00000000-0000-4000-8000-000000000205',direction:'outbound',body:'Mensaje de prueba fallido.',created_at:'2026-11-04T10:04:00Z',delivery_status:'sent'});
 const contactRows=Array.from({length:52},(_,i)=>({...contact,id:i===0?contact.id:'00000000-0000-4000-8000-'+String(i+300).padStart(12,'0'),first_name:i===0?contact.first_name:i===1?'Contacto sin conversación':'Contacto ficticio '+(i+1),conversation_id:i===1?null:conversations[i].id,score:80}));
 const handoffSettings={enabled:false,recipient_configured:false,template_name:'olivia_handoff_equipo',template_language:'es',template_approved:false,template_body:'Olivia necesita ayuda del equipo Sadiet.\nContacto: {{1}}\nTeléfono: {{2}}\nMotivo: {{3}}\nResumen: {{4}}\nFicha: {{5}}\nTipo: {{6}}'};
 const handoffDemo={id:'00000000-0000-4000-8000-000000000888',contact_id:contact.id,conversation_id:conversations[0].id,status:'requested',priority:'high',reason:'Consulta de pedido que requiere revisión',summary:'Solicita revisar el envío del pedido DEMO-123. Le interesa el café con jengibre y está inscrito en Early Access.',source:'olivia',assigned_to:null,internal_notes:'',created_at:new Date().toISOString(),updated_at:new Date().toISOString(),notification_requested:true,notification_status:null,notification_error:null,contact_snapshot:{name:'Contacto de demostración',phone:contact.phone,email:contact.email,stage:contact.stage,score:80,tags:contact.manual_tags},events:[{id:'demo-event',event_type:'created',actor:'olivia',created_at:new Date().toISOString(),metadata:{status:'requested'}}]};
@@ -23,6 +25,19 @@ const provider=http.createServer(async(req,res)=>{let raw='';for await(const c o
  if(req.url.startsWith('/rest/v1/rpc/olivia_delete_contact')){deletedContactIds.add(b.p_id);return res.end(JSON.stringify({deleted:true}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_conversation_directory')){const rows=conversations.filter(c=>!deletedContactIds.has(c.contact_id)&&(!b.p_control||c.handoff_status===b.p_control)&&(!b.p_status||c.status===b.p_status)&&(!b.p_search||c.contact.first_name.includes(b.p_search)));const page=Math.min(b.p_page||1,Math.max(1,Math.ceil(rows.length/50)));return res.end(JSON.stringify({rows:rows.slice((page-1)*50,page*50),total:rows.length,page,page_size:50,open_total:52}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_conversation_detail'))return res.end(JSON.stringify({conversation:conversations.find(c=>c.id===b.p_id),contact,messages,has_older:false,message_count:messages.length,outbound_enabled:false,channel_consents:[{channel:'whatsapp',status:'granted'},{channel:'email',status:'granted'}]}));
+ if(req.url.startsWith('/rest/v1/rpc/olivia_conversation_delivery_statuses'))return res.end(JSON.stringify({
+  '00000000-0000-4000-8000-000000000200':{status:'sent',sent_at:null,delivered_at:null,read_at:null,error:null},
+  '00000000-0000-4000-8000-000000000202':{status:'read',sent_at:'2026-11-04T10:01:00Z',delivered_at:'2026-11-04T10:01:05Z',read_at:'2026-11-04T10:02:00Z',error:null}
+  ,'00000000-0000-4000-8000-000000000204':{status:'delivered',sent_at:'2026-11-04T10:03:00Z',delivered_at:'2026-11-04T10:03:05Z',read_at:null,error:null}
+  ,'00000000-0000-4000-8000-000000000205':{status:'failed',sent_at:null,delivered_at:null,read_at:null,error:'131026: No se pudo entregar'}
+ }));
+ if(req.url.startsWith('/rest/v1/rpc/olivia_record_whatsapp_status'))return res.end('true');
+ if(req.url.startsWith('/rest/v1/rpc/olivia_whatsapp_source_allowed'))return res.end('true');
+ if(req.url.startsWith('/test/inbound')){
+  const expected='sha256='+createHmac('sha256','test-only-meta-secret').update(JSON.stringify(b)).digest('hex');
+  if(req.headers['x-hub-signature-256']!==expected){res.statusCode=401;return res.end('{}');}
+  return res.end('{"ok":true}');
+ }
  if(req.url.startsWith('/rest/v1/rpc/olivia_manual_reply')){const c=conversations.find(c=>c.id===b.p_conversation);c.handoff_status='human';c.updated_at=new Date().toISOString();messages.push({id:b.p_request,direction:'outbound',body:b.p_body,created_at:new Date().toISOString(),delivery_status:'pending',sender_role:'human'});return res.end(JSON.stringify({dispatch_id:b.p_request,status:'pending',outbound_enabled:false}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_save_conversation')){const c=conversations.find(c=>c.id===b.p_id);Object.assign(c,b.p_input,{updated_at:new Date().toISOString()});return res.end(JSON.stringify({conversation:c,in_flight:0,cancelled_dispatches:0}));}
  if(req.url.startsWith('/rest/v1/rpc/olivia_contact_directory')){const rows=contactRows.filter(c=>!deletedContactIds.has(c.id)&&(!b.p_stage||c.stage===b.p_stage)&&(!b.p_tag||c.manual_tags.includes(b.p_tag))&&(!b.p_search||[c.first_name,c.email,c.phone].some(v=>v?.includes(b.p_search))));const page=Math.min(b.p_page||1,Math.max(1,Math.ceil(rows.length/50)));return res.end(JSON.stringify({rows:rows.slice((page-1)*50,page*50),total:rows.length,page,page_size:50}));}
@@ -34,6 +49,6 @@ const provider=http.createServer(async(req,res)=>{let raw='';for await(const c o
  res.end('[]');
 });
 provider.listen(3338,'127.0.0.1',()=>{
- const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3337'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:3338',SUPABASE_PUBLISHABLE_KEY:'fake-public',SUPABASE_SERVICE_ROLE_KEY:'fake-service',CRM_ADMIN_EMAILS:email,CRM_SITE_URL:'http://localhost:3337',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit'});
+ const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3337'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:3338',SUPABASE_PUBLISHABLE_KEY:'fake-public',SUPABASE_SERVICE_ROLE_KEY:'fake-service',META_APP_SECRET:'test-only-meta-secret',META_WEBHOOK_VERIFY_TOKEN:'test-only-verify',OLIVIA_N8N_WEBHOOK_URL:'http://127.0.0.1:3338/test/inbound',CRM_ADMIN_EMAILS:email,CRM_SITE_URL:'http://localhost:3337',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit'});
  process.on('SIGINT',()=>{child.kill();provider.close();process.exit();});
 });
