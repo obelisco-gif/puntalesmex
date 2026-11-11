@@ -11,7 +11,8 @@ import { ProductVariations, type ProductVariation } from "./product-variations";
 type Product = { product_type?:string; variations?:ProductVariation[]; variations_synced_at?:string|null; variations_sync_status?:string; id: string; name: string; price: string | number | null; stock_status: string; image_url: string | null; internal_notes: string | null; manual_tags: string[]; permalink: string };
 type Document = DocumentRecord;
 type Touchpoint = { id: string; channel: string; source: string | null; campaign: string | null; medium: string | null; content: string | null; occurred_at: string; contacts: { first_name: string | null; email: string | null; phone: string | null } | null };
-type Dashboard = { products: Product[]; documents: Document[]; touchpoints: Touchpoint[]; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
+type AttributionWin = { source: string; campaign: string; registrations?: number; orders?: number; revenue?: number };
+type Dashboard = { products: Product[]; documents: Document[]; touchpoints: Touchpoint[]; attributionPanels: { early_access: AttributionWin[]; purchases: AttributionWin[] }; metrics: { products: number; contacts: number; openConversations: number; inStock: number } };
 
 const tabs = [["resumen","Resumen"],["conversaciones","Conversaciones"],["contactos","Contactos"],["acceso-prioritario","Acceso prioritario"],["handoffs","Handoffs"],["catalogo","Catálogo"],["documentacion","Documentación"],["atribucion","Atribución"]];
 
@@ -111,7 +112,7 @@ export default function OliviaCrm() {
       {tab === "handoffs" && <Handoffs />}
       {tab === "conversaciones" && <Conversations products={data.products} onSave={saveResource} />}
       {tab === "documentacion" && <Documentation documents={data.documents} products={data.products} onSave={saveDocument} />}
-      {tab === "atribucion" && <Attribution touchpoints={data.touchpoints} />}
+      {tab === "atribucion" && <Attribution touchpoints={data.touchpoints} panels={data.attributionPanels} />}
     </section>
   </main>;
 }
@@ -126,9 +127,14 @@ function ProductCard({ product, onSave }: { product: Product; onSave: (product: 
   return <article className="product-card"><div className="product-title">{product.image_url ? <img src={product.image_url} alt="" /> : <div className="image-placeholder" />}<div><h2>{product.name}</h2><a href={product.permalink} target="_blank">Ver en la tienda</a></div></div><div className="product-meta"><span>{product.price !== null && product.price !== "" ? (product.product_type === "variable" ? "Desde " : "") + String(product.price) + " €" : "Sin precio"}</span><span className={product.stock_status === "instock" ? "stock yes" : "stock"}>{product.stock_status === "instock" ? "En stock" : "Sin stock"}</span></div>{product.product_type === "variable" && <ProductVariations variations={product.variations || []} syncedAt={product.variations_synced_at} syncStatus={product.variations_sync_status} />}<label>Anotaciones internas<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ej.: priorizar en campañas de otoño; revisar texto comercial…" /></label><label>Etiquetas manuales<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="ej.: top-venta, campaña-recetas" /></label><button onClick={() => onSave(product, notes, tags)}>Guardar anotaciones</button></article>;
 }
 
-function Attribution({ touchpoints }: { touchpoints: Touchpoint[] }) {
-  if (!touchpoints.length) return <Empty title="Atribución de campañas" text="Cada lead de Meta guardará aquí campaña, conjunto, anuncio y su evolución comercial." />;
-  return <section className="record-list">{touchpoints.map((item) => <article className="record-card" key={item.id}><div className="record-heading"><div><h2>{item.contacts?.first_name || item.contacts?.phone || "Lead sin identificar"}</h2><p>{new Date(item.occurred_at).toLocaleString("es-ES")}</p></div><span className="badge">{item.channel}</span></div><div className="attribution-grid"><span><b>Fuente</b>{item.source || "—"}</span><span><b>Campaña</b>{item.campaign || "—"}</span><span><b>Medio</b>{item.medium || "—"}</span><span><b>Contenido</b>{item.content || "—"}</span></div></article>)}</section>;
+function Attribution({ touchpoints, panels }: { touchpoints: Touchpoint[]; panels: Dashboard["attributionPanels"] }) {
+  return <><section className="panel attribution-wins"><div className="record-heading"><div><h2>Wins de campaña</h2><p>Primeros eventos medibles. Se podrán añadir más conversiones cuando estén disponibles.</p></div></div><div className="win-grid"><WinPanel title="Inscripciones · Acceso prioritario" rows={panels.early_access} kind="registrations" /><WinPanel title="Compras atribuidas" rows={panels.purchases} kind="purchases" /></div><p className="attribution-note">Las compras se atribuyen al último origen conocido antes del pago. Las que no tienen una relación verificable se mantienen como «Sin atribución».</p></section>{touchpoints.length ? <section className="record-list">{touchpoints.map((item) => <article className="record-card" key={item.id}><div className="record-heading"><div><h2>{item.contacts?.first_name || item.contacts?.phone || "Lead sin identificar"}</h2><p>{new Date(item.occurred_at).toLocaleString("es-ES")}</p></div><span className="badge">{item.channel}</span></div><div className="attribution-grid"><span><b>Fuente</b>{item.source || "—"}</span><span><b>Campaña</b>{item.campaign || "—"}</span><span><b>Medio</b>{item.medium || "—"}</span><span><b>Contenido</b>{item.content || "—"}</span></div></article>)}</section> : <Empty title="Detalle de atribución" text="Aún no hay puntos de atribución individuales." />}</>;
+}
+
+function WinPanel({ title, rows, kind }: { title: string; rows: AttributionWin[]; kind: "registrations" | "purchases" }) {
+  const value = (row: AttributionWin) => kind === "registrations" ? row.registrations : row.orders;
+  const total = rows.reduce((sum, row) => sum + Number(value(row) || 0), 0);
+  return <article className="win-panel"><span>{title}</span><strong>{total}</strong><small>{kind === "registrations" ? "altas registradas" : "pedidos con contacto vinculado"}</small>{rows.length ? <div className="win-rows">{rows.map((row, index) => <div key={`${row.source}-${row.campaign}-${index}`}><span>{row.source} · {row.campaign}</span><b>{value(row)}{kind === "purchases" && row.revenue !== undefined ? ` · ${Number(row.revenue).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}` : ""}</b></div>)}</div> : <p>Sin datos todavía.</p>}</article>;
 }
 
 function Empty({ title, text }: { title: string; text: string }) { return <section className="panel empty"><h2>{title}</h2><p>{text}</p></section>; }
