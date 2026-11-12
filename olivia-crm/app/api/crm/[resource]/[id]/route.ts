@@ -31,6 +31,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
       const input = attributeInput(incoming);
       return NextResponse.json(await rpc("olivia_save_attribute_crm", { p_contact: id, p_key: input.attribute_key, p_value: input.value_jsonb }));
     }
+    if (resource === "contacts" && typeof incoming.automation_blocked === "boolean") {
+      if (typeof incoming.expected_updated_at !== "string" || !Number.isFinite(Date.parse(incoming.expected_updated_at))) return NextResponse.json({error:"Actualiza la ficha antes de bloquear el contacto."},{status:400});
+      return NextResponse.json(await rpc("olivia_set_contact_block", { p_id: id, p_blocked: incoming.automation_blocked, p_expected_updated_at: incoming.expected_updated_at }));
+    }
     if (resource === "contacts") return NextResponse.json(await rpc("olivia_save_contact", { p_id: id, p_input: contactInput(incoming) }));
     if (resource === "contact_entries") return NextResponse.json(await rpc("olivia_save_commercial_entry", { p_contact: id, p_entry: commercialEntryInput(incoming) }));
     if (resource === "documents") {
